@@ -13,6 +13,9 @@ from aiogram.enums import ParseMode
 from aiogram.exceptions import TelegramAPIError
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 import openai
+# from aiogram.utils.markdown import escape_md
+from aiogram.utils import markdown as md
+# from aiogram.utils.escapers import markdown_decoration
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -118,21 +121,29 @@ async def search_trailer_google(movie_title: str) -> Optional[str]:
         logger.error(f"Google Search error: {str(e)}")
         return None
 
+from aiogram.enums import ParseMode
 
-# @dp.message_handler()
+
+def escape_md(text: str) -> str:
+    """Ручное экранирование спецсимволов для MarkdownV2"""
+    escape_chars = '_*[]()~`>#+-=|{}.!'
+    return ''.join(f'\\{char}' if char in escape_chars else char for char in text)
+
 @dp.message()
 async def handle_movie_search(message: types.Message):
     """Обработчик запросов на поиск фильмов"""
     try:
         description = message.text.strip()
         if len(description) < 10:
-            await message.reply("✍️ Пожалуйста, введите более подробное описание (не менее 10 символов).")
+            await message.reply("✍️ Пожалуйста, введите более подробное описание \(не менее 10 символов\)\.")
+          #  await message.reply(md.escape("✍️ Пожалуйста, введите более подробное описание (не менее 10 символов)."))
             return
 
         # Поиск фильма
         movie_title = await search_movie_gpt(description)
         if not movie_title:
-            await message.reply("🔍 Не удалось определить фильм. Попробуйте другое описание.")
+           # await message.reply("🔍 Не удалось определить фильм. Попробуйте другое описание.")
+            await message.reply(md.escape("🔍 Не удалось определить фильм. Попробуйте другое описание."))
             return
 
         # Генерация рецензии
@@ -141,17 +152,47 @@ async def handle_movie_search(message: types.Message):
         # Поиск трейлера
         trailer_link = await search_trailer_google(movie_title)
 
-        # Формирование ответа
-        response = f"🎬 *{movie_title}*\n\n{review}"
-        if trailer_link:
-            response += f"\n\n🎥 [Смотреть трейлер]({trailer_link})"
+        # Формирование ответа с экранированием
+        # escaped_title = md.escape(movie_title)
+        # escaped_review = md.escape(review)
 
-        await message.reply(response, parse_mode=ParseMode.MARKDOWN)
+        safe_title = escape_md(movie_title)
+        safe_review = escape_md(review)
+        print(safe_title)
+        print(safe_review)
+
+        # Формирование ответа
+       # response = f"🎬 *{escaped_title}*\n\n{escaped_review}"
+        response = (
+            f"🎬 *{safe_title}*\n\n"
+            f"{safe_review}"
+        )
+
+        if trailer_link:
+
+            # safe_link = escape_md(trailer_link)
+            # response += f"\n\n🎥 [Смотреть трейлер]({safe_link})"
+           # safe_link = trailer_link.replace(')', '\\)').replace('(', '\\(')
+            safe_link = escape_md(trailer_link)
+            print(safe_link)
+            response += f"\n\n🎥 [Смотреть трейлер]({safe_link})"
+
+        # Логирую !
+
+        logger.debug(f"Raw response text:\n{response}")
+        print(response)
+
+       # await message.reply(response, parse_mode=ParseMode.MARKDOWN)
+        await message.reply(
+            text=response,
+            parse_mode=ParseMode.MARKDOWN_V2
+        )
 
     except APIError as e:
         await message.reply(f"⚠️ {str(e)}")
     except TelegramAPIError as e:
-        logger.error(f"Telegram API error: {str(e)}")
+        logger.error(f"Telegram API error: {str(e.message)}")
+
     except Exception as e:
         logger.error(f"Unexpected error: {str(e)}")
         await message.reply("⚠️ Произошла непредвиденная ошибка. Пожалуйста, попробуйте позже.")
