@@ -43,8 +43,8 @@ DB = {
     "current_style": "аналитический",
     "schedule": "0 9 * * *",
     "posted_imdb_ids": []
+    # "posted_movies": []
 }
-
 
 # Состояния FSM
 class AdminStates(StatesGroup):
@@ -52,12 +52,18 @@ class AdminStates(StatesGroup):
     setting_style = State()
     setting_schedule = State()
 
+# Загрузка стилей рецензий
+try:
+    with open("styles.json", "r", encoding="utf-8") as f:
+        STYLE_DESCRIPTIONS = json.load(f)
+except Exception as e:
+    logger.error(f"Error loading styles: {e}")
+    STYLE_DESCRIPTIONS = {"default": "Стандартный стиль рецензии"}
 
 # Утилиты
 def escape_md(text: str) -> str:
     escape_chars = '_*[]()~`>#+-=|{}.!'
     return ''.join(f'\\{char}' if char in escape_chars else char for char in str(text))
-
 
 def time_to_cron(user_time: str) -> str:
     if not re.match(r"^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$", user_time):
@@ -77,7 +83,6 @@ def parse_cron(cron_str: str) -> dict:
         "month": parts[3],
         "day_of_week": parts[4]
     }
-
 
 # Работа с историей фильмов
 def save_to_history(movie: dict):
@@ -107,9 +112,11 @@ MOVIE_PROMPT = """Сгенерируй описание фильма в жанр
 Title: Название
 Year: Год
 IMDB-ID: ttXXXXXX (действительный идентификатор с IMDB)
-Plot: Краткое описание
+Plot: Краткое описание на русском языке
 
 Только действительные существующие фильмы!"""
+
+GENERAL_REVIEW_PROMPT = os.getenv("GENERAL_REVIEW_PROMPT", "Стандартные требования к рецензии")
 
 
 async def get_movie_data(genre: str) -> Optional[dict]:
@@ -151,24 +158,43 @@ def parse_movie_response(text: str) -> Optional[dict]:
         logger.error(f"Ошибка парсинга: {str(e)}")
         return None
 
-
+# Обновлённая функция генерации рецензии
 async def generate_review(movie: dict) -> str:
+    style_description = STYLE_DESCRIPTIONS.get(
+        DB['current_style'],
+        "Стандартный аналитический стиль"
+    )
+
+    system_prompt = (
+        f"{GENERAL_REVIEW_PROMPT}\n\n"
+        f"Стиль изложения: {DB['current_style']}\n"
+        f"Характеристики стиля: {style_description}"
+    )
+
     try:
         response = await openai.ChatCompletion.acreate(
             model="gpt-4",
-            messages=[{
-                "role": "system",
-                "content": f"Напиши {DB['current_style']} рецензию. {STYLE_DESCRIPTIONS.get(DB['current_style'], '')}"
-            }, {
-                "role": "user",
-                "content": f"Фильм: {movie['title']} ({movie['year']})\nСюжет: {movie['plot']}"
-            }]
+            messages=[
+                {
+                    "role": "system",
+                    "content": system_prompt
+                },
+                {
+                    "role": "user",
+                    "content": (
+                        f"Фильм: {movie['title']} ({movie['year']})\n"
+                        f"Сюжет: {movie['plot']}\n\n"
+                        "Сгенерируй рецензию согласно указанным требованиям:"
+                    )
+                }
+            ],
+            temperature=0.7,
+            max_tokens=1000
         )
         return response.choices[0].message.content
     except Exception as e:
-        logger.error(f"Ошибка генерации рецензии: {str(e)}")
+        logger.error(f"Ошибка генерации: {str(e)}")
         return "Рецензия временно недоступна"
-
 
 # Основная логика публикации
 async def publish_scheduled_post():
@@ -213,6 +239,94 @@ async def notify_admin(message: str):
 
 
 # Обработчики команд
+
+# Обработчик кнопки "🎭 Сменить жанр"
+@dp.message(F.text == "🎭 Сменить жанр")
+async def set_genre_handler(message: types.Message, state: FSMContext):
+    if message.from_user.id not in ADMINS:
+        return
+
+    builder = InlineKeyboardBuilder()
+    for genre in ["боевик", "комедия", "драма", "фантастика"]:
+        builder.button(text=genre, callback_data=f"genre_{genre}")
+    builder.adjust(2)
+
+    await message.answer(
+        "🎭 Выберите новый жанр:",
+        reply_markup=builder.as_markup()
+    )
+    await state.set_state(AdminStates.setting_genre)
+
+
+# Обработчик кнопки "🖋 Сменить стиль"
+@dp.message(F.text == "🖋 Сменить стиль")
+async def set_style_handler(message: types.Message, state: FSMContext):
+    if message.from_user.id not in ADMINS:
+        return
+
+    markup = InlineKeyboardBuilder()
+    for style in STYLE_DESCRIPTIONS:
+        markup.button(text=style, callback_data=f"style_{style}")
+    markup.adjust(2)
+
+    await message.answer(
+        "🖋 Выберите новый стиль:",
+        reply_markup=markup.as_markup()
+    )
+    await state.set_state(AdminStates.setting_style)
+
+
+# Обработчик кнопки "⏰ Изменить время"
+@dp.message(F.text == "⏰ Изменить время")
+async def set_schedule_handler(message: types.Message, state: FSMContext):
+    if message.from_user.id not in ADMINS:
+        return
+
+    builder = ReplyKeyboardBuilder()
+    for t in ["09:00", "12:00", "15:00", "18:00"]:
+        builder.add(KeyboardButton(text=t))
+    builder.adjust(2)
+
+    await message.answer(
+        "🕒 Введите время в формате ЧЧ:ММ\nПример: 09:30",
+        reply_markup=builder.as_markup(resize_keyboard=True)
+    )
+    await state.set_state(AdminStates.setting_schedule)
+
+
+# Обработчик кнопки "🚀 Опубликовать сейчас"
+@dp.message(F.text == "🚀 Опубликовать сейчас")
+async def publish_now_handler(message: types.Message):
+    if message.from_user.id not in ADMINS:
+        return
+
+    await message.answer("🔄 Запускаю публикацию\.\.\.")
+    await publish_scheduled_post()
+
+# Обработчик выбора жанра
+@dp.callback_query(F.data.startswith("genre_"), AdminStates.setting_genre)
+async def genre_selected(callback: types.CallbackQuery, state: FSMContext):
+    genre = callback.data.split("_")[1]
+    DB["current_genre"] = genre
+    await callback.message.edit_text(f"✅ Жанр установлен: {genre}")
+    await state.clear()
+    await admin_panel(callback.message)  # Возврат в админ-панель
+
+# Обработчик выбора стиля
+@dp.callback_query(F.data.startswith("style_"), AdminStates.setting_style)
+async def style_selected(callback: types.CallbackQuery, state: FSMContext):
+    style = callback.data.split("_")[1]
+    DB["current_style"] = style
+    await callback.message.edit_text(f"✅ Стиль установлен: {style}")
+    await state.clear()
+    await admin_panel(callback.message)  # Возврат в админ-панель
+
+# Обработчик кнопки "🔙 В меню"
+@dp.message(F.text == "🔙 В меню")
+async def back_to_menu_handler(message: types.Message, state: FSMContext):
+    await state.clear()
+    await cmd_start(message)
+
 @dp.message(F.text == "/start")
 async def cmd_start(message: types.Message):
     markup = ReplyKeyboardMarkup(
