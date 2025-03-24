@@ -123,9 +123,22 @@ async def admin_panel(message: types.Message):
     )
 
 # Обработчики админ-меню
-@dp.callback_query(F.data == "set_genre")
-async def set_genre_handler(callback: types.CallbackQuery, state: FSMContext):
-    if callback.from_user.id not in ADMINS:
+@dp.message(F.text == "⏰ Изменить расписание")  # Новый хэндлер для кнопки
+async def set_schedule_handler(message: types.Message, state: FSMContext):
+    if message.from_user.id not in ADMINS:
+        return
+
+    await message.answer(
+        "⏰ Введите новое расписание в формате cron:\n"
+        "Пример: 0 9 * * * - ежедневно в 9:00\n"
+        "Формат: [минуты] [часы] [дни] [месяцы] [дни недели]",
+        parse_mode=None  # Полностью отключаем разметку
+    )
+    await state.set_state(AdminStates.setting_schedule)
+
+@dp.message(F.text == "🎭 Сменить жанр")  # Добавьте этот хэндлер
+async def set_genre_handler(message: types.Message, state: FSMContext):
+    if message.from_user.id not in ADMINS:
         return
 
     markup = InlineKeyboardBuilder()
@@ -133,7 +146,7 @@ async def set_genre_handler(callback: types.CallbackQuery, state: FSMContext):
         markup.button(text=genre, callback_data=f"genre_{genre}")
     markup.adjust(2)
 
-    await callback.message.answer(  # Используем callback.message
+    await message.answer(
         "🎭 Выберите новый жанр:",
         reply_markup=markup.as_markup()
     )
@@ -167,29 +180,15 @@ async def style_selected(callback: types.CallbackQuery, state: FSMContext):
     await callback.message.edit_text(f"✅ Стиль установлен: {DB['current_style']}")
     await state.clear()
 
-@dp.callback_query(F.data == "set_schedule")
-async def set_schedule_handler(callback: types.CallbackQuery, state: FSMContext):
-    """Обработчик кнопки изменения расписания"""
-    if message.from_user.id not in ADMINS:
-        return
-
-    await message.answer(
-        "⏰ Введите новое расписание в формате cron:\n"
-        "Пример: 0 9 * * * - ежедневно в 9:00\n"
-        "Формат: [минуты] [часы] [дни] [месяцы] [дни недели]"
-    )
-    await state.set_state(AdminStates.setting_schedule)
-
 @dp.message(AdminStates.setting_schedule)
 async def schedule_entered(message: types.Message, state: FSMContext):
     try:
         parse_cron(message.text)
         DB["schedule"] = message.text
-        await message.answer(f"✅ Расписание обновлено: {message.text}")
+        await message.answer(f"✅ Расписание обновлено: {escape_md(message.text)}")
     except ValueError:
         await message.answer("❌ Неверный формат. Пример: '0 9 * * *'")
     await state.clear()
-
 
 @dp.message(F.text == "🚀 Опубликовать сейчас")
 async def publish_now_handler(message: types.Message):
