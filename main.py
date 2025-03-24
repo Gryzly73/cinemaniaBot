@@ -5,7 +5,7 @@ import asyncio
 import aiohttp
 from typing import Dict, Optional
 from aiogram import Bot, Dispatcher, types, F
-from aiogram.utils.keyboard import InlineKeyboardBuilder
+from aiogram.utils.keyboard import InlineKeyboardBuilder, ReplyKeyboardBuilder
 from aiogram.enums import ParseMode
 from aiogram.client.default import DefaultBotProperties
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -14,6 +14,9 @@ from dotenv import load_dotenv
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
+from aiogram.utils.keyboard import ReplyKeyboardBuilder
+from datetime import datetime, time
+import re
 
 
 # Загрузка переменных окружения
@@ -54,18 +57,33 @@ def escape_md(text: str) -> str:
     escape_chars = '_*[]()~`>#+-=|{}.!'
     return ''.join(f'\\{char}' if char in escape_chars else char for char in str(text))
 
+
 def parse_cron(cron_str: str) -> dict:
-    """Парсинг строки cron в параметры для APScheduler"""
+    """Парсит cron-строку или принимает время"""
+    if ":" in cron_str:
+        cron_str = time_to_cron(cron_str)
+
     parts = cron_str.strip().split()
-    if len(parts) != 5:
-        raise ValueError("Неверный формат cron. Пример: '0 9 * * *'")
     return {
         "minute": parts[0],
         "hour": parts[1],
         "day": parts[2],
         "month": parts[3],
-        "day_of_week": parts[4]
+        "day_of_week": parts[4],
+        "second": "0"
     }
+
+#  функция конвертации времени
+def time_to_cron(user_time: str) -> str:
+    """
+    Конвертирует время в формате HH:MM в cron-формат
+    Пример: "09:30" -> "30 9 * * *"
+    """
+    if not re.match(r"^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$", user_time):
+        raise ValueError("Неверный формат времени")
+
+    hours, minutes = map(int, user_time.split(':'))
+    return f"{minutes} {hours} * * *"
 
 # Инициализация OpenAI
 openai.api_key = OPENAI_API_KEY
@@ -103,36 +121,66 @@ async def cmd_start(message: types.Message):
 @dp.message(F.text == "/admin")
 async def admin_panel(message: types.Message):
     if message.from_user.id not in ADMINS:
-        await message.answer("Доступ запрещён ❌")
+        await message.answer("🚫 Доступ запрещён!", reply_markup=types.ReplyKeyboardRemove())
         return
 
-    markup = ReplyKeyboardMarkup(
-        keyboard=[
-            [KeyboardButton(text="🎭 Сменить жанр"),
-             KeyboardButton(text="🖋 Сменить стиль")],
-            [KeyboardButton(text="⏰ Изменить расписание"),
-             KeyboardButton(text="🚀 Опубликовать сейчас")],
-            [KeyboardButton(text="🔙 В главное меню")]
-        ],
-        resize_keyboard=True
+    try:
+        cron_parts = DB["schedule"].split()
+        current_time = datetime.strptime(
+            f"{cron_parts[1]}:{cron_parts[0]}", "%H:%M"
+        ).strftime("%H:%M")
+    except Exception as e:
+        logger.error(f"Error parsing cron time: {e}")
+        current_time = "⏰ Не установлено"
+
+    # Обновленный текст с инструкцией
+    status_text = (
+        f"⚙️ *Админ\-панель* \n\n"
+        f"▫️ *Текущий жанр*: {escape_md(DB['current_genre'])}\n"
+        f"▫️ *Стиль рецензий*: {escape_md(DB['current_style'])}\n"
+        f"▫️ *Время публикации*: {escape_md(current_time)}\n\n"
+        f"_Выберите действие из кнопок ниже\._"
+        f"\n\n❌ Для отмены введите /cancel"  # Добавили сюда
     )
 
+    builder = ReplyKeyboardBuilder()
+    builder.row(
+        KeyboardButton(text="🎭 Сменить жанр"),
+        KeyboardButton(text="🖋 Сменить стиль")
+    )
+    builder.row(
+        KeyboardButton(text="⏰ Изменить расписание"),
+        KeyboardButton(text="🚀 Опубликовать сейчас")
+    )
+    builder.row(KeyboardButton(text="🔙 В главное меню"))
+
+    # Отправляем ОДНО сообщение с клавиатурой
     await message.answer(
-        "⚙️ Админ\-панель:",
-        reply_markup=markup
+        status_text,
+        parse_mode=ParseMode.MARKDOWN_V2,
+        reply_markup=builder.as_markup(
+            resize_keyboard=True,
+            input_field_placeholder="Выберите действие\.\.\."
+        )
     )
 
 # Обработчики админ-меню
-@dp.message(F.text == "⏰ Изменить расписание")  # Новый хэндлер для кнопки
+@dp.message(F.text == "⏰ Изменить расписание")
 async def set_schedule_handler(message: types.Message, state: FSMContext):
     if message.from_user.id not in ADMINS:
         return
 
+    # Создаем клавиатуру с примерами
+    builder = ReplyKeyboardBuilder()
+    for t in ["09:00", "12:00", "15:00", "18:00"]:
+        builder.add(KeyboardButton(text=t))
+    builder.adjust(2)
+
     await message.answer(
-        "⏰ Введите новое расписание в формате cron:\n"
-        "Пример: 0 9 * * * - ежедневно в 9:00\n"
-        "Формат: [минуты] [часы] [дни] [месяцы] [дни недели]",
-        parse_mode=None  # Полностью отключаем разметку
+        "🕒 Введите время публикации в формате ЧЧ:ММ\n"
+        "Пример: 09:30 или 14:00\n\n"
+        "Или выберите из готовых вариантов:",
+        reply_markup=builder.as_markup(resize_keyboard=True)
     )
     await state.set_state(AdminStates.setting_schedule)
 
@@ -180,15 +228,48 @@ async def style_selected(callback: types.CallbackQuery, state: FSMContext):
     await callback.message.edit_text(f"✅ Стиль установлен: {DB['current_style']}")
     await state.clear()
 
+
+# 3. Обновим обработчик состояния
 @dp.message(AdminStates.setting_schedule)
-async def schedule_entered(message: types.Message, state: FSMContext):
+async def process_schedule_input(message: types.Message, state: FSMContext):
     try:
-        parse_cron(message.text)
-        DB["schedule"] = message.text
-        await message.answer(f"✅ Расписание обновлено: {escape_md(message.text)}")
-    except ValueError:
-        await message.answer("❌ Неверный формат. Пример: '0 9 * * *'")
-    await state.clear()
+        # Конвертируем время в cron
+        cron_str = time_to_cron(message.text)
+
+        # Обновляем расписание
+        DB["schedule"] = cron_str
+
+        # Проверяем существование задачи
+        job = scheduler.get_job("daily_post")
+        if job:
+            scheduler.reschedule_job("daily_post", trigger='cron', **parse_cron(cron_str))
+        else:
+            scheduler.add_job(publish_scheduled_post, trigger='cron', id="daily_post", **parse_cron(cron_str))
+
+        await admin_panel(message)
+
+   #  except ValueError as e:
+
+
+        # Форматируем красивое время для ответа
+    #    time_obj = datetime.strptime(message.text, "%H:%M").time()
+     #   formatted_time = time_obj.strftime("%H:%M")
+
+    #    await message.answer(
+     #       f"✅ Расписание обновлено!\n"
+     #       f"Новое время публикации: {formatted_time}",
+      #      reply_markup=types.ReplyKeyboardRemove()
+     #   )
+
+    except ValueError as e:
+        await message.answer(
+            f"❌ Неверный формат времени:\n"
+            f"{escape_md(str(e))}\n"
+            f"Попробуйте ещё раз в формате ЧЧ:ММ",
+            parse_mode=ParseMode.MARKDOWN_V2
+        )
+    finally:
+        await state.clear()
 
 @dp.message(F.text == "🚀 Опубликовать сейчас")
 async def publish_now_handler(message: types.Message):
@@ -220,20 +301,6 @@ async def style_selected(callback: types.CallbackQuery, state: FSMContext):
     style = callback.data.split("_")[1]
     DB["current_style"] = style
     await callback.message.edit_text(f"✅ Стиль изменен на: {style}")
-    await state.clear()
-
-@dp.message(AdminStates.setting_schedule)
-async def schedule_entered(message: types.Message, state: FSMContext):
-    try:
-        parse_cron(message.text)
-        DB["schedule"] = message.text
-        scheduler.reschedule_job(
-            "daily_post",
-            **parse_cron(DB['schedule'])
-        )
-        await message.answer(f"✅ Расписание обновлено: {message.text}")
-    except ValueError as e:
-        await message.answer(f"❌ Ошибка: {escape_md(str(e))}")
     await state.clear()
 
 # Основная логика публикации
@@ -325,6 +392,7 @@ async def publish_scheduled_post():
 scheduler.add_job(
     publish_scheduled_post,
     trigger='cron',
+    id="daily_post",
     **parse_cron(DB['schedule'])
 )
 
