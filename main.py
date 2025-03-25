@@ -51,6 +51,7 @@ class AdminStates(StatesGroup):
     setting_style = State()
     setting_schedule = State()
     custom_review = State()
+    review_ready = State()  # новое состояние после генерации рецензии
 
 # Загрузка стилей рецензий
 try:
@@ -305,16 +306,28 @@ async def another_review_handler(message: types.Message, state: FSMContext):
 # Изменения в функции generate_custom_review и добавление parse_custom_review
 def parse_custom_review(text: str) -> Optional[dict]:
     try:
-        title = re.search(r'Title: (.+)', text).group(1)
-        year = re.search(r'Year: (\d{4})', text).group(1)
-        review = re.search(r'Review: (.+)', text, re.DOTALL).group(1).strip()
-        plot_match = re.search(r'Plot: (.+)', text, re.DOTALL)
+        # Логируем текст для отладки (при необходимости, потом убрать)
+        logger.info(f"Сырой текст рецензии: {text}")
+
+        title_match = re.search(r'^Title:\s*(.+)$', text, re.MULTILINE)
+        year_match = re.search(r'^Year:\s*(\d{4})$', text, re.MULTILINE)
+        plot_match = re.search(r'^Plot:\s*(.+)$', text, re.MULTILINE)
+        review_match = re.search(r'^Review:\s*(.+)$', text, re.MULTILINE | re.DOTALL)
+
+        if not title_match or not year_match or not review_match:
+            logger.error("Не удалось распознать обязательные поля рецензии.")
+            return None
+
+        title = title_match.group(1).strip()
+        year = year_match.group(1).strip()
+        review = review_match.group(1).strip()
         plot = plot_match.group(1).strip() if plot_match else "Описание отсутствует"
+
         return {
-            "title": title.strip(),
+            "title": title,
             "year": int(year),
-            "review": review,
-            "plot": plot
+            "plot": plot,
+            "review": review
         }
     except Exception as e:
         logger.error(f"Ошибка парсинга кастомной рецензии: {str(e)}")
@@ -354,12 +367,10 @@ async def generate_custom_review(query: str) -> Optional[dict]:
         logger.error(f"Ошибка генерации кастомной рецензии: {str(e)}")
         return None
 
-# Обновлённый обработчик process_custom_review
 @dp.message(AdminStates.custom_review)
 async def process_custom_review(message: types.Message, state: FSMContext):
     try:
-        current_state = await state.get_state()
-
+        logger.info(f"Получен запрос для кастомной рецензии: {message.text}")
         await bot.send_chat_action(message.chat.id, "typing")
         review_data = await generate_custom_review(message.text)
 
@@ -386,6 +397,9 @@ async def process_custom_review(message: types.Message, state: FSMContext):
             KeyboardButton(text="🔙 В админку")
         )
 
+        # Переводим состояние в review_ready, чтобы показать, что рецензия готова к публикации
+        await state.set_state(AdminStates.review_ready)
+
         await message.answer(
             escape_md(f"📝 Рецензия ({DB['current_style']}):\n\n{review_data['review']}"),
             reply_markup=builder.as_markup(resize_keyboard=True),
@@ -393,14 +407,17 @@ async def process_custom_review(message: types.Message, state: FSMContext):
         )
 
     except Exception as e:
-        logger.error(f"Custom review error: {str(e)}")
-        await message.answer("⚠️ Ошибка генерации. Попробуйте другой запрос.")
+        logger.error(f"Ошибка генерации кастомной рецензии: {str(e)}")
+        await message.answer("⚠️ Ошибка генерации\. Попробуйте другой запрос\.")
         await state.clear()
 
 # Модифицированный обработчик публикации
 @dp.message(F.text == "🚀 Опубликовать сейчас")
 async def publish_now_handler(message: types.Message, state: FSMContext):
-    if message.from_user.id not in ADMINS:
+    # Если нужно, проверяем состояние
+    current_state = await state.get_state()
+    if current_state != AdminStates.review_ready.state:
+        await message.answer("⚠️ Рецензия не готова для публикации\!")
         return
 
     data = await state.get_data()
@@ -415,22 +432,20 @@ async def publish_now_handler(message: types.Message, state: FSMContext):
                 f"📝 Рецензия \\({escape_md(DB['current_style'])}\\):\n{escape_md(review)}"
             )
             await bot.send_message(CHANNEL_ID, text=post, parse_mode=ParseMode.MARKDOWN_V2)
-
-            # Сохранение истории
             save_to_history({
                 "imdb_id": movie["imdb_id"],
-                "title": movie["title"],
-                "year": movie["year"],
-                "plot": movie.get("plot", "")
+                "title": movie['title'],
+                "year": movie['year'],
+                "plot": movie.get('plot', '')
             })
-
             await message.answer("✅ Рецензия опубликована\!")
         except Exception as e:
-            await message.answer(f"⚠️ Ошибка публикации\: {e}")
+            await message.answer(f"⚠️ Ошибка публикации: {e}")
         finally:
-            await state.clear()  # Очищаем состояние после публикации
+            await state.clear()  # Полностью очищаем состояние
     else:
         await message.answer("⚠️ Нет рецензии для публикации\! Попробуйте создать новую\.")
+
 
 # Обновление обработчика возврата в админку для очистки состояния
 @dp.message(F.text == "🔙 В админку")
