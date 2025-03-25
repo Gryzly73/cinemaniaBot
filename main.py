@@ -43,7 +43,6 @@ DB = {
     "current_style": "аналитический",
     "schedule": "0 9 * * *",
     "posted_imdb_ids": []
-    # "posted_movies": []
 }
 
 # Состояния FSM
@@ -51,6 +50,7 @@ class AdminStates(StatesGroup):
     setting_genre = State()
     setting_style = State()
     setting_schedule = State()
+    custom_review = State()
 
 # Загрузка стилей рецензий
 try:
@@ -70,7 +70,6 @@ def time_to_cron(user_time: str) -> str:
         raise ValueError("Неверный формат времени")
     hours, minutes = map(int, user_time.split(':'))
     return f"{minutes} {hours} * * *"
-
 
 def parse_cron(cron_str: str) -> dict:
     if ":" in cron_str:
@@ -96,14 +95,12 @@ def save_to_history(movie: dict):
     except Exception as e:
         logger.error(f"Ошибка сохранения истории: {str(e)}")
 
-
 def load_history() -> list:
     try:
         with open(MOVIES_HISTORY_FILE, "r", encoding="utf-8") as f:
             return [json.loads(line) for line in f.readlines()]
     except FileNotFoundError:
         return []
-
 
 # OpenAI функции
 openai.api_key = OPENAI_API_KEY
@@ -117,7 +114,6 @@ Plot: Краткое описание на русском языке
 Только действительные существующие фильмы!"""
 
 GENERAL_REVIEW_PROMPT = os.getenv("GENERAL_REVIEW_PROMPT", "Стандартные требования к рецензии")
-
 
 async def get_movie_data(genre: str) -> Optional[dict]:
     attempt = 0
@@ -139,7 +135,6 @@ async def get_movie_data(genre: str) -> Optional[dict]:
             logger.error(f"Попытка {attempt + 1} неудачна: {str(e)}")
             attempt += 1
     return None
-
 
 def parse_movie_response(text: str) -> Optional[dict]:
     try:
@@ -224,19 +219,16 @@ async def publish_scheduled_post():
         logger.error(f"Ошибка публикации: {str(e)}")
         await notify_admin(f"🔥 Ошибка публикации: {str(e)}")
 
-
 async def handle_duplicate(movie: dict):
     logger.warning(f"Дубликат IMDB ID: {movie['imdb_id']}")
     new_movie = await get_movie_data(DB["current_genre"])
     if new_movie:
         await publish_scheduled_post()
 
-
 # Уведомления админа
 async def notify_admin(message: str):
     for admin in ADMINS:
         await bot.send_message(admin, message)
-
 
 # Обработчики команд
 
@@ -257,7 +249,6 @@ async def set_genre_handler(message: types.Message, state: FSMContext):
     )
     await state.set_state(AdminStates.setting_genre)
 
-
 # Обработчик кнопки "🖋 Сменить стиль"
 @dp.message(F.text == "🖋 Сменить стиль")
 async def set_style_handler(message: types.Message, state: FSMContext):
@@ -274,7 +265,6 @@ async def set_style_handler(message: types.Message, state: FSMContext):
         reply_markup=markup.as_markup()
     )
     await state.set_state(AdminStates.setting_style)
-
 
 # Обработчик кнопки "⏰ Изменить время"
 @dp.message(F.text == "⏰ Изменить время")
@@ -293,15 +283,160 @@ async def set_schedule_handler(message: types.Message, state: FSMContext):
     )
     await state.set_state(AdminStates.setting_schedule)
 
-
-# Обработчик кнопки "🚀 Опубликовать сейчас"
-@dp.message(F.text == "🚀 Опубликовать сейчас")
-async def publish_now_handler(message: types.Message):
+# Обработчик команды /cancel
+@dp.message(F.text == "/cancel")
+async def cancel_handler(message: types.Message, state: FSMContext):
     if message.from_user.id not in ADMINS:
         return
 
-    await message.answer("🔄 Запускаю публикацию\.\.\.")
-    await publish_scheduled_post()
+    await state.clear()
+    await message.answer("❌ Операция отменена", reply_markup=types.ReplyKeyboardRemove())
+    await admin_panel(message)
+
+@dp.message(F.text == "❌ Отменить операцию")
+async def cancel_button_handler(message: types.Message, state: FSMContext):
+    await cancel_handler(message, state)
+
+# Обработчик кнопки "📝 Еще рецензия"
+@dp.message(F.text == "📝 Еще рецензия")
+async def another_review_handler(message: types.Message, state: FSMContext):
+    await custom_review_start(message, state)
+
+# Изменения в функции generate_custom_review и добавление parse_custom_review
+def parse_custom_review(text: str) -> Optional[dict]:
+    try:
+        title = re.search(r'Title: (.+)', text).group(1)
+        year = re.search(r'Year: (\d{4})', text).group(1)
+        review = re.search(r'Review: (.+)', text, re.DOTALL).group(1).strip()
+        plot_match = re.search(r'Plot: (.+)', text, re.DOTALL)
+        plot = plot_match.group(1).strip() if plot_match else "Описание отсутствует"
+        return {
+            "title": title.strip(),
+            "year": int(year),
+            "review": review,
+            "plot": plot
+        }
+    except Exception as e:
+        logger.error(f"Ошибка парсинга кастомной рецензии: {str(e)}")
+        return None
+
+async def generate_custom_review(query: str) -> Optional[dict]:
+    system_prompt = (
+        f"{GENERAL_REVIEW_PROMPT}\n"
+        f"Стиль: {DB['current_style']}\n"
+        "Учти: пользователь мог ввести название, концепцию или краткое описание!\n"
+        "Формат ответа:\n"
+        "Title: Название фильма\n"
+        "Year: Год выпуска\n"
+        "Plot: Краткое описание сюжета\n"
+        "Review: Текст рецензии\n\n"
+    )
+
+    try:
+        response = await openai.ChatCompletion.acreate(
+            model="gpt-4",
+            messages=[
+                {
+                    "role": "system",
+                    "content": system_prompt
+                },
+                {
+                    "role": "user",
+                    "content": f"Запрос: {query}\n\nНапиши рецензию в указанном формате:"
+                }
+            ],
+            temperature=0.8,
+            max_tokens=1500
+        )
+        raw_text = response.choices[0].message.content
+        return parse_custom_review(raw_text)
+    except Exception as e:
+        logger.error(f"Ошибка генерации кастомной рецензии: {str(e)}")
+        return None
+
+# Обновлённый обработчик process_custom_review
+@dp.message(AdminStates.custom_review)
+async def process_custom_review(message: types.Message, state: FSMContext):
+    try:
+        current_state = await state.get_state()
+
+        await bot.send_chat_action(message.chat.id, "typing")
+        review_data = await generate_custom_review(message.text)
+
+        if not review_data:
+            await message.answer("⚠️ Не удалось сгенерировать рецензию. Попробуйте другой запрос.")
+            await state.clear()
+            return
+
+        # Сохраняем данные в состоянии
+        await state.update_data(
+            movie={
+                "title": review_data["title"],
+                "year": review_data["year"],
+                "plot": review_data["plot"],
+                "imdb_id": f"custom_{uuid.uuid4().hex}"
+            },
+            review=review_data["review"]
+        )
+
+        builder = ReplyKeyboardBuilder()
+        builder.row(KeyboardButton(text="🚀 Опубликовать сейчас"))
+        builder.row(
+            KeyboardButton(text="📝 Еще рецензия"),
+            KeyboardButton(text="🔙 В админку")
+        )
+
+        await message.answer(
+            escape_md(f"📝 Рецензия ({DB['current_style']}):\n\n{review_data['review']}"),
+            reply_markup=builder.as_markup(resize_keyboard=True),
+            parse_mode=ParseMode.MARKDOWN_V2
+        )
+
+    except Exception as e:
+        logger.error(f"Custom review error: {str(e)}")
+        await message.answer("⚠️ Ошибка генерации. Попробуйте другой запрос.")
+        await state.clear()
+
+# Модифицированный обработчик публикации
+@dp.message(F.text == "🚀 Опубликовать сейчас")
+async def publish_now_handler(message: types.Message, state: FSMContext):
+    if message.from_user.id not in ADMINS:
+        return
+
+    data = await state.get_data()
+    movie = data.get('movie')
+    review = data.get('review')
+
+    if movie and review:
+        try:
+            post = (
+                f"🎬 *{escape_md(movie['title'])}* \\({escape_md(str(movie['year']))}\\)\n\n"
+                f"📖 Жанр: {escape_md(DB['current_genre'])}\n"
+                f"📝 Рецензия \\({escape_md(DB['current_style'])}\\):\n{escape_md(review)}"
+            )
+            await bot.send_message(CHANNEL_ID, text=post, parse_mode=ParseMode.MARKDOWN_V2)
+
+            # Сохранение истории
+            save_to_history({
+                "imdb_id": movie["imdb_id"],
+                "title": movie["title"],
+                "year": movie["year"],
+                "plot": movie.get("plot", "")
+            })
+
+            await message.answer("✅ Рецензия опубликована\!")
+        except Exception as e:
+            await message.answer(f"⚠️ Ошибка публикации\: {e}")
+        finally:
+            await state.clear()  # Очищаем состояние после публикации
+    else:
+        await message.answer("⚠️ Нет рецензии для публикации\! Попробуйте создать новую\.")
+
+# Обновление обработчика возврата в админку для очистки состояния
+@dp.message(F.text == "🔙 В админку")
+async def back_to_admin_handler(message: types.Message, state: FSMContext):
+    await state.clear()
+    await admin_panel(message)
 
 # Обработчик выбора жанра
 @dp.callback_query(F.data.startswith("genre_"), AdminStates.setting_genre)
@@ -345,7 +480,6 @@ async def cmd_start(message: types.Message):
         reply_markup=markup
     )
 
-
 @dp.message(F.text == "/admin")
 async def admin_panel(message: types.Message):
     if message.from_user.id not in ADMINS:
@@ -366,15 +500,49 @@ async def admin_panel(message: types.Message):
     )
 
     builder = ReplyKeyboardBuilder()
-    builder.row(KeyboardButton(text="🎭 Сменить жанр"), KeyboardButton(text="🖋 Сменить стиль"))
-    builder.row(KeyboardButton(text="⏰ Изменить время"), KeyboardButton(text="🚀 Опубликовать сейчас"))
-    builder.row(KeyboardButton(text="🔙 В меню"))
+
+    # Первый ряд
+    builder.row(
+        KeyboardButton(text="🎭 Сменить жанр"),
+        KeyboardButton(text="🖋 Сменить стиль")
+    )
+
+    # Второй ряд
+    builder.row(
+        KeyboardButton(text="⏰ Изменить время"),
+        KeyboardButton(text="🚀 Опубликовать сейчас")
+    )
+
+    # Третий ряд
+    builder.row(
+        KeyboardButton(text="📝 Создать рецензию"),
+        KeyboardButton(text="🔙 В меню")
+    )
+
 
     await message.answer(
         status_text,
-        reply_markup=builder.as_markup(resize_keyboard=True)
+        reply_markup=builder.as_markup(
+            resize_keyboard=True,
+            input_field_placeholder="Выберите действие..."
+        )
     )
 
+# Обработчик кнопки "📝 Создать рецензию"
+@dp.message(F.text == "📝 Создать рецензию")
+async def custom_review_start(message: types.Message, state: FSMContext):
+    if message.from_user.id not in ADMINS:
+        return
+
+    await message.answer(
+        "🎬 Введите название фильма или описание для генерации рецензии\:\n"
+        "Примеры:\n"
+        "\- Крестный отец, криминальная сага о мафии\n"
+        "\- Фильм про роботов\-полицейских в будущем мегаполисе\n"
+        "❌ Отмена \- \/cancel",
+        reply_markup=types.ReplyKeyboardRemove()
+    )
+    await state.set_state(AdminStates.custom_review)
 
 # Остальные обработчики и запуск
 async def main():
@@ -390,7 +558,6 @@ async def main():
     scheduler.start()
 
     await dp.start_polling(bot)
-
 
 if __name__ == "__main__":
     asyncio.run(main())
