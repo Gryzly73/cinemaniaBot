@@ -67,10 +67,10 @@ except Exception as e:
 #    escape_chars = '_*[]()~`>#+-=|{}.!'
  #   return ''.join(f'\\{char}' if char in escape_chars else char for char in str(text))
 
-
 def escape_md(text: str) -> str:
-    escape_chars = '_*[]()~`>#+-=|{}.!'
+    escape_chars = '_*[]()~`>#+-=|{}.!'  # Все спецсимволы MarkdownV2
     return re.sub(f'([{"".join(re.escape(c) for c in escape_chars)}])', r'\\\1', str(text))
+
 
 def time_to_cron(user_time: str) -> str:
     if not re.match(r"^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$", user_time):
@@ -213,11 +213,12 @@ async def publish_scheduled_post():
     try:
         review = await generate_review(movie)
         post = (
-         #   f"🎬 *{escape_md(movie['title'])}* \\({escape_md(str(movie['year']))}\\)\n\n"
-            f"🎬 *{escape_md(movie['title'])}* ({escape_md(str(movie['year']))})"
+           # f"🎬 *{escape_md(movie['title'])}* ({escape_md(str(movie['year']))})"
+           # f"📖 Жанр: {escape_md(DB['current_genre'])}\n"
+           # f"📝 Рецензия ({escape_md(DB['current_style'])}):\n{escape_md(review)}"
+            f"🎬 *{escape_md(movie['title'])}* \\({escape_md(str(movie['year']))}\\)\n\n"
             f"📖 Жанр: {escape_md(DB['current_genre'])}\n"
-        #    f"📝 Рецензия \\({escape_md(DB['current_style'])}\\):\n{escape_md(review)}"
-            f"📝 Рецензия ({escape_md(DB['current_style'])}):\n{escape_md(review)}"
+            f"📝 Рецензия \\({escape_md(DB['current_style'])}\\):\n{escape_md(review)}"
         )
 
         await bot.send_message(CHANNEL_ID, text=post, parse_mode=ParseMode.MARKDOWN_V2)
@@ -444,12 +445,15 @@ async def process_custom_review(message: types.Message, state: FSMContext):
         if not is_valid:
             await message.answer("⚠️ Недействительный IMDB ID\! Попробуйте еще раз")
             return
+        logger.warning(review_data)
+        logger.warning(review_data["review"])
 
         # Сохраняем данные
         await state.update_data(
             movie=review_data,
             review=review_data["review"]
         )
+        logger.warning("Ok!")
 
         # Показываем превью
         builder = ReplyKeyboardBuilder()
@@ -458,10 +462,18 @@ async def process_custom_review(message: types.Message, state: FSMContext):
 
         await message.answer(
             f"✅ Найден фильм:\n\n"
-            f"🎬 {review_data['title']} ({review_data['year']})\n"
-            f"📚 Сюжет: {review_data['plot'][:200]}\n\n"
-            f"📝 Рецензия:\n{review_data['review'][:500]}",
+          #  f"🎬 {escape_md(review_data['title'])} \({review_data['year']}\)\n"
+            f"🎬 {escape_md(review_data['title'])} \\({escape_md(str(review_data['year']))}\\)\n"
+            f"📚 Сюжет: {escape_md(review_data['plot'])[:200]}\n\n"
+            f"📝 Рецензия:\n{escape_md(review_data['review'])[:500]}",
             reply_markup=builder.as_markup()
+        )
+
+        # Сохраняем ВСЕ данные фильма включая IMDB ID
+        await state.update_data(
+            movie=review_data,  # содержит imdb_id
+            review=review_data["review"],
+            imdb_id=review_data["imdb_id"]  # явное сохранение ID
         )
         await state.set_state(AdminStates.review_ready)
 
@@ -470,29 +482,54 @@ async def process_custom_review(message: types.Message, state: FSMContext):
         await message.answer("❌ Произошла ошибка, попробуйте снова")
         await state.clear()
 
+
+
+
 @dp.message(F.text.startswith("tt") and AdminStates.review_ready)
 async def handle_manual_imdb_input(message: types.Message, state: FSMContext):
-    imdb_id = message.text.strip()
+    data = await state.get_data()
+    current_imdb = data.get('imdb_id', '')  # получаем текущий ID из состояния
+
+   # imdb_id = message.text.strip()
+    imdb_id = current_imdb
+
+    logger.warning("imfb")
+    logger.warning(message.text)
+    logger.warning(message.text.strip())
+
+
+    # Проверка формата
     if not re.match(r"^tt\d{7,8}$", imdb_id):
         await message.answer("❌ Неверный формат IMDB ID")
         return
 
+    # Проверка существования фильма
     is_valid = await verify_imdb_id(imdb_id)
     if not is_valid:
         await message.answer("❌ Фильм с таким ID не найден")
         return
 
-    data = await state.get_data()
+    # Обновляем данные в состоянии
     data['movie']['imdb_id'] = imdb_id
-    await state.update_data(movie=data['movie'])
+    await state.update_data(
+        movie=data['movie'],
+        imdb_id=imdb_id  # обновляем ID в состоянии
+    )
 
-    await message.answer("✅ IMDB ID успешно обновлен\!")
+    # Для наглядности выводим обновлённые данные
+    await message.answer(
+        f"✅ IMDB ID успешно обновлен:\n"
+        f"Старый: {current_imdb}\n"
+        f"Новый: {imdb_id}"
+    )
 
 # Модифицированный обработчик публикации
 @dp.message(F.text == "🚀 Опубликовать сейчас")
 async def publish_now_handler(message: types.Message, state: FSMContext):
+    logger.warning("start")
     if message.from_user.id not in ADMINS:
         return
+    logger.warning("admin ok!")
 
     data = await state.get_data()
     movie = data.get('movie')
@@ -508,6 +545,9 @@ async def publish_now_handler(message: types.Message, state: FSMContext):
             }
 
             poster_url = get_movie_poster(movie_data)
+            logger.warning("Poster url")
+            logger.warning(poster_url)
+
 
             # Экранирование текста
             escaped_title = escape_md(movie['title'])
