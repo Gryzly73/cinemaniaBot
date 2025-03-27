@@ -5,6 +5,7 @@ import asyncio
 import aiohttp
 import uuid
 import re
+import requests
 from typing import Dict, Optional
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.utils.keyboard import InlineKeyboardBuilder, ReplyKeyboardBuilder
@@ -62,9 +63,14 @@ except Exception as e:
     STYLE_DESCRIPTIONS = {"default": "Стандартный стиль рецензии"}
 
 # Утилиты
+# def escape_md(text: str) -> str:
+#    escape_chars = '_*[]()~`>#+-=|{}.!'
+ #   return ''.join(f'\\{char}' if char in escape_chars else char for char in str(text))
+
+
 def escape_md(text: str) -> str:
     escape_chars = '_*[]()~`>#+-=|{}.!'
-    return ''.join(f'\\{char}' if char in escape_chars else char for char in str(text))
+    return re.sub(f'([{"".join(re.escape(c) for c in escape_chars)}])', r'\\\1', str(text))
 
 def time_to_cron(user_time: str) -> str:
     if not re.match(r"^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$", user_time):
@@ -109,10 +115,10 @@ openai.api_key = OPENAI_API_KEY
 MOVIE_PROMPT = """Сгенерируй описание фильма в жанре {genre} в формате:
 Title: Название
 Year: Год
-IMDB-ID: ttXXXXXX (действительный идентификатор с IMDB)
-Plot: Краткое описание на русском языке
-
-Только действительные существующие фильмы!"""
+IMDB-ID: ttXXXXXX \(действительный идентификатор с IMDB\)
+Plot: Краткое описание на русском языке - без многоточий на конце предложений.
+Избегай многоточий и повторяющихся знаков препинания
+Только действительные существующие фильмы\!"""
 
 GENERAL_REVIEW_PROMPT = os.getenv("GENERAL_REVIEW_PROMPT", "Стандартные требования к рецензии")
 
@@ -126,7 +132,7 @@ async def get_movie_data(genre: str) -> Optional[dict]:
                     "role": "user",
                     "content": MOVIE_PROMPT.format(genre=genre)
                 }],
-                temperature=0.7
+                temperature=0.5
             )
 
             raw_text = response.choices[0].message.content
@@ -184,7 +190,7 @@ async def generate_review(movie: dict) -> str:
                     )
                 }
             ],
-            temperature=0.7,
+            temperature=0.5,
             max_tokens=1000
         )
         return response.choices[0].message.content
@@ -197,7 +203,7 @@ async def publish_scheduled_post():
     movie = await get_movie_data(DB["current_genre"])
 
     if not movie:
-        await notify_admin("❌ Не удалось получить данные фильма!")
+        await notify_admin("❌ Не удалось получить данные фильма\!")
         return
 
     if movie["imdb_id"] in DB["posted_imdb_ids"]:
@@ -207,9 +213,11 @@ async def publish_scheduled_post():
     try:
         review = await generate_review(movie)
         post = (
-            f"🎬 *{escape_md(movie['title'])}* \\({escape_md(str(movie['year']))}\\)\n\n"
+         #   f"🎬 *{escape_md(movie['title'])}* \\({escape_md(str(movie['year']))}\\)\n\n"
+            f"🎬 *{escape_md(movie['title'])}* ({escape_md(str(movie['year']))})"
             f"📖 Жанр: {escape_md(DB['current_genre'])}\n"
-            f"📝 Рецензия \\({escape_md(DB['current_style'])}\\):\n{escape_md(review)}"
+        #    f"📝 Рецензия \\({escape_md(DB['current_style'])}\\):\n{escape_md(review)}"
+            f"📝 Рецензия ({escape_md(DB['current_style'])}):\n{escape_md(review)}"
         )
 
         await bot.send_message(CHANNEL_ID, text=post, parse_mode=ParseMode.MARKDOWN_V2)
@@ -231,8 +239,56 @@ async def notify_admin(message: str):
     for admin in ADMINS:
         await bot.send_message(admin, message)
 
-# Обработчики команд
+def get_movie_poster(movie_data: dict) -> Optional[str]:
+    omdb_api_key = os.getenv("OMDB_API_KEY")
 
+    # Пытаемся найти по IMDB ID для обычных фильмов
+    if movie_data["imdb_id"].startswith("tt"):
+        url = f"http://www.omdbapi.com/?i={movie_data['imdb_id']}&apikey={omdb_api_key}"
+    else:  # Для кастомных рецензий ищем по названию и году
+        url = (f"http://www.omdbapi.com/?t={movie_data['title']}"
+               f"&y={movie_data['year']}&apikey={omdb_api_key}")
+
+    try:
+        response = requests.get(url)
+        if response.ok:
+            data = response.json()
+            if data.get('Response') == 'True':
+                return data.get("Poster") if data.get("Poster") != "N/A" else None
+    except Exception as e:
+        logger.error(f"Ошибка получения постера: {e}")
+    return None
+
+async def get_movie_media(imdb_id: str) -> dict:
+    omdb_api_key = os.getenv("OMDB_API_KEY")
+    url = f"http://www.omdbapi.com/?i={imdb_id}&apikey={omdb_api_key}"
+
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url) as response:
+                data = await response.json()
+                return {
+                    "poster": data.get('Poster'),
+                    "trailer": f"https://www.imdb.com/title/{imdb_id}/videogallery"
+                }
+    except Exception as e:
+        logger.error(f"Ошибка получения медиа: {str(e)}")
+        return {}
+
+async def verify_imdb_id(imdb_id: str) -> bool:
+    omdb_api_key = os.getenv("OMDB_API_KEY")
+    url = f"http://www.omdbapi.com/?i={imdb_id}&apikey={omdb_api_key}"
+
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url) as response:
+                data = await response.json()
+                return data.get('Response') == 'True'
+    except Exception as e:
+        logger.error(f"Ошибка верификации IMDB ID: {str(e)}")
+        return False
+
+# Обработчики команд
 # Обработчик кнопки "🎭 Сменить жанр"
 @dp.message(F.text == "🎭 Сменить жанр")
 async def set_genre_handler(message: types.Message, state: FSMContext):
@@ -306,43 +362,47 @@ async def another_review_handler(message: types.Message, state: FSMContext):
 # Изменения в функции generate_custom_review и добавление parse_custom_review
 def parse_custom_review(text: str) -> Optional[dict]:
     try:
-        # Логируем текст для отладки (при необходимости, потом убрать)
-        logger.info(f"Сырой текст рецензии: {text}")
+        title_match = re.search(r'Title:\s*(.+)', text, re.IGNORECASE)
+        year_match = re.search(r'Year:\s*(\d{4})', text, re.IGNORECASE)
+        imdb_match = re.search(r'IMDB-ID:\s*(tt\d{7,8})', text, re.IGNORECASE)
+        plot_match = re.search(r'Plot:\s*(.+)', text, re.IGNORECASE | re.DOTALL)
+        review_match = re.search(r'Review:\s*(.+)$', text, re.IGNORECASE | re.DOTALL)
 
-        title_match = re.search(r'^Title:\s*(.+)$', text, re.MULTILINE)
-        year_match = re.search(r'^Year:\s*(\d{4})$', text, re.MULTILINE)
-        plot_match = re.search(r'^Plot:\s*(.+)$', text, re.MULTILINE)
-        review_match = re.search(r'^Review:\s*(.+)$', text, re.MULTILINE | re.DOTALL)
+        title = title_match.group(1).strip() if title_match else "Неизвестный фильм"
+        year = int(year_match.group(1)) if year_match else datetime.now().year
+        plot = plot_match.group(1).strip() if plot_match else ""
+        review = review_match.group(1).strip() if review_match else ""
 
-        if not title_match or not year_match or not review_match:
-            logger.error("Не удалось распознать обязательные поля рецензии.")
-            return None
-
-        title = title_match.group(1).strip()
-        year = year_match.group(1).strip()
-        review = review_match.group(1).strip()
-        plot = plot_match.group(1).strip() if plot_match else "Описание отсутствует"
+        # Проверяем наличие корректного IMDB ID
+        imdb_id = ""
+        if imdb_match:
+            extracted = imdb_match.group(1).strip()
+            if re.match(r'^tt\d{7,8}$', extracted):
+                imdb_id = extracted
 
         return {
             "title": title,
-            "year": int(year),
+            "year": year,
             "plot": plot,
-            "review": review
+            "review": review,
+            "imdb_id": imdb_id
         }
     except Exception as e:
         logger.error(f"Ошибка парсинга кастомной рецензии: {str(e)}")
         return None
 
+
 async def generate_custom_review(query: str) -> Optional[dict]:
     system_prompt = (
         f"{GENERAL_REVIEW_PROMPT}\n"
         f"Стиль: {DB['current_style']}\n"
-        "Учти: пользователь мог ввести название, концепцию или краткое описание!\n"
+        "Учти: пользователь мог ввести название, концепцию или краткое описание\!\n"
         "Формат ответа:\n"
         "Title: Название фильма\n"
         "Year: Год выпуска\n"
-        "Plot: Краткое описание сюжета\n"
-        "Review: Текст рецензии\n\n"
+        "IMDB-ID: ttXXXXXXX\n"
+        "Plot: Описание сюжета на 20-30 слов - ни в коем случае не ставь несколько точек рядом, не ставь нигде многоточия, обязательно заканчивай описание одной точкой\n"
+        "Review: Текст рецензии 100-120 слов - не ставь нигде многоточия\n\n"
     )
 
     try:
@@ -358,10 +418,11 @@ async def generate_custom_review(query: str) -> Optional[dict]:
                     "content": f"Запрос: {query}\n\nНапиши рецензию в указанном формате:"
                 }
             ],
-            temperature=0.8,
+            temperature=0.5,
             max_tokens=1500
         )
         raw_text = response.choices[0].message.content
+        logger.warning(raw_text)
         return parse_custom_review(raw_text)
     except Exception as e:
         logger.error(f"Ошибка генерации кастомной рецензии: {str(e)}")
@@ -370,54 +431,67 @@ async def generate_custom_review(query: str) -> Optional[dict]:
 @dp.message(AdminStates.custom_review)
 async def process_custom_review(message: types.Message, state: FSMContext):
     try:
-        logger.info(f"Получен запрос для кастомной рецензии: {message.text}")
-        await bot.send_chat_action(message.chat.id, "typing")
         review_data = await generate_custom_review(message.text)
 
         if not review_data:
-            await message.answer("⚠️ Не удалось сгенерировать рецензию. Попробуйте другой запрос.")
+            await message.answer("❌ Не удалось сгенерировать рецензию")
             await state.clear()
             return
+        logger.warning(review_data["imdb_id"])
+        # Верификация IMDB ID
+        is_valid = await verify_imdb_id(review_data["imdb_id"])
 
-        # Сохраняем данные в состоянии
+        if not is_valid:
+            await message.answer("⚠️ Недействительный IMDB ID\! Попробуйте еще раз")
+            return
+
+        # Сохраняем данные
         await state.update_data(
-            movie={
-                "title": review_data["title"],
-                "year": review_data["year"],
-                "plot": review_data["plot"],
-                "imdb_id": f"custom_{uuid.uuid4().hex}"
-            },
+            movie=review_data,
             review=review_data["review"]
         )
 
+        # Показываем превью
         builder = ReplyKeyboardBuilder()
         builder.row(KeyboardButton(text="🚀 Опубликовать сейчас"))
-        builder.row(
-            KeyboardButton(text="📝 Еще рецензия"),
-            KeyboardButton(text="🔙 В админку")
-        )
-
-        # Переводим состояние в review_ready, чтобы показать, что рецензия готова к публикации
-        await state.set_state(AdminStates.review_ready)
+        builder.row(KeyboardButton(text="📝 Еще рецензия"), KeyboardButton(text="🔙 В админку"))
 
         await message.answer(
-            escape_md(f"📝 Рецензия ({DB['current_style']}):\n\n{review_data['review']}"),
-            reply_markup=builder.as_markup(resize_keyboard=True),
-            parse_mode=ParseMode.MARKDOWN_V2
+            f"✅ Найден фильм:\n\n"
+            f"🎬 {review_data['title']} ({review_data['year']})\n"
+            f"📚 Сюжет: {review_data['plot'][:200]}\n\n"
+            f"📝 Рецензия:\n{review_data['review'][:500]}",
+            reply_markup=builder.as_markup()
         )
+        await state.set_state(AdminStates.review_ready)
 
     except Exception as e:
-        logger.error(f"Ошибка генерации кастомной рецензии: {str(e)}")
-        await message.answer("⚠️ Ошибка генерации\. Попробуйте другой запрос\.")
+        logger.error(f"Ошибка: {str(e)}")
+        await message.answer("❌ Произошла ошибка, попробуйте снова")
         await state.clear()
+
+@dp.message(F.text.startswith("tt") and AdminStates.review_ready)
+async def handle_manual_imdb_input(message: types.Message, state: FSMContext):
+    imdb_id = message.text.strip()
+    if not re.match(r"^tt\d{7,8}$", imdb_id):
+        await message.answer("❌ Неверный формат IMDB ID")
+        return
+
+    is_valid = await verify_imdb_id(imdb_id)
+    if not is_valid:
+        await message.answer("❌ Фильм с таким ID не найден")
+        return
+
+    data = await state.get_data()
+    data['movie']['imdb_id'] = imdb_id
+    await state.update_data(movie=data['movie'])
+
+    await message.answer("✅ IMDB ID успешно обновлен\!")
 
 # Модифицированный обработчик публикации
 @dp.message(F.text == "🚀 Опубликовать сейчас")
 async def publish_now_handler(message: types.Message, state: FSMContext):
-    # Если нужно, проверяем состояние
-    current_state = await state.get_state()
-    if current_state != AdminStates.review_ready.state:
-        await message.answer("⚠️ Рецензия не готова для публикации\!")
+    if message.from_user.id not in ADMINS:
         return
 
     data = await state.get_data()
@@ -426,26 +500,59 @@ async def publish_now_handler(message: types.Message, state: FSMContext):
 
     if movie and review:
         try:
-            post = (
-                f"🎬 *{escape_md(movie['title'])}* \\({escape_md(str(movie['year']))}\\)\n\n"
-                f"📖 Жанр: {escape_md(DB['current_genre'])}\n"
-                f"📝 Рецензия \\({escape_md(DB['current_style'])}\\):\n{escape_md(review)}"
+            # Получаем данные для поиска постера
+            movie_data = {
+                "imdb_id": movie["imdb_id"],
+                "title": movie['title'],
+                "year": movie['year']
+            }
+
+            poster_url = get_movie_poster(movie_data)
+
+            # Экранирование текста
+            escaped_title = escape_md(movie['title'])
+            escaped_year = escape_md(str(movie['year']))
+            escaped_genre = escape_md(DB['current_genre'])
+            escaped_style = escape_md(DB['current_style'])
+            escaped_review = escape_md(review)
+
+            caption = (
+                f"🎬 *{escaped_title}* \\({escaped_year}\\)\n\n"
+                f"📖 Жанр: {escaped_genre}\n"
+                f"📝 Рецензия \\({escaped_style}\\):\n{escaped_review}"
             )
-            await bot.send_message(CHANNEL_ID, text=post, parse_mode=ParseMode.MARKDOWN_V2)
+
+            # Отправка поста с постером или без
+            if poster_url:
+                await bot.send_photo(
+                    chat_id=CHANNEL_ID,
+                    photo=poster_url,
+                    caption=caption,
+                    parse_mode=ParseMode.MARKDOWN_V2
+                )
+            else:
+                await bot.send_message(
+                    CHANNEL_ID,
+                    text=caption,
+                    parse_mode=ParseMode.MARKDOWN_V2
+                )
+
+            # Сохранение в историю
             save_to_history({
                 "imdb_id": movie["imdb_id"],
                 "title": movie['title'],
                 "year": movie['year'],
                 "plot": movie.get('plot', '')
             })
+
             await message.answer("✅ Рецензия опубликована\!")
         except Exception as e:
-            await message.answer(f"⚠️ Ошибка публикации: {e}")
+            logger.error(f"Ошибка публикации: {str(e)}")
+            await message.answer(f"⚠️ Ошибка публикации: {str(e)}")
         finally:
-            await state.clear()  # Полностью очищаем состояние
+            await state.clear()
     else:
-        await message.answer("⚠️ Нет рецензии для публикации\! Попробуйте создать новую\.")
-
+        await message.answer("⚠️ Нет рецензии для публикации\!")
 
 # Обновление обработчика возврата в админку для очистки состояния
 @dp.message(F.text == "🔙 В админку")
@@ -539,7 +646,7 @@ async def admin_panel(message: types.Message):
         status_text,
         reply_markup=builder.as_markup(
             resize_keyboard=True,
-            input_field_placeholder="Выберите действие..."
+            input_field_placeholder="Выберите действие\.\.\."
         )
     )
 
