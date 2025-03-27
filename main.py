@@ -483,8 +483,6 @@ async def process_custom_review(message: types.Message, state: FSMContext):
         await state.clear()
 
 
-
-
 @dp.message(F.text.startswith("tt") and AdminStates.review_ready)
 async def handle_manual_imdb_input(message: types.Message, state: FSMContext):
     data = await state.get_data()
