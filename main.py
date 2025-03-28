@@ -63,14 +63,9 @@ except Exception as e:
     STYLE_DESCRIPTIONS = {"default": "Стандартный стиль рецензии"}
 
 # Утилиты
-# def escape_md(text: str) -> str:
-#    escape_chars = '_*[]()~`>#+-=|{}.!'
- #   return ''.join(f'\\{char}' if char in escape_chars else char for char in str(text))
-
 def escape_md(text: str) -> str:
-    escape_chars = '_*[]()~`>#+-=|{}.!'  # Все спецсимволы MarkdownV2
+    escape_chars = '_*[]()~`>#+-=|{}.!'
     return re.sub(f'([{"".join(re.escape(c) for c in escape_chars)}])', r'\\\1', str(text))
-
 
 def time_to_cron(user_time: str) -> str:
     if not re.match(r"^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$", user_time):
@@ -212,16 +207,45 @@ async def publish_scheduled_post():
 
     try:
         review = await generate_review(movie)
-        post = (
-           # f"🎬 *{escape_md(movie['title'])}* ({escape_md(str(movie['year']))})"
-           # f"📖 Жанр: {escape_md(DB['current_genre'])}\n"
-           # f"📝 Рецензия ({escape_md(DB['current_style'])}):\n{escape_md(review)}"
-            f"🎬 *{escape_md(movie['title'])}* \\({escape_md(str(movie['year']))}\\)\n\n"
-            f"📖 Жанр: {escape_md(DB['current_genre'])}\n"
-            f"📝 Рецензия \\({escape_md(DB['current_style'])}\\):\n{escape_md(review)}"
+
+        # Получаем данные для медиа
+        movie_data = {
+            "imdb_id": movie["imdb_id"],
+            "title": movie['title'],
+            "year": movie['year']
+        }
+
+        # Используем ту же логику, что и в ручной публикации
+        poster_url = get_movie_poster(movie_data)
+
+        # Формируем текст поста
+        escaped_title = escape_md(movie['title'])
+        escaped_year = escape_md(str(movie['year']))
+        escaped_genre = escape_md(DB['current_genre'])
+        escaped_style = escape_md(DB['current_style'])
+        escaped_review = escape_md(review)
+
+        caption = (
+            f"🎬 *{escaped_title}* \\({escaped_year}\\)\n\n"
+            f"📖 Жанр: {escaped_genre}\n"
+            f"📝 Рецензия \\({escaped_style}\\):\n{escaped_review}"
         )
 
-        await bot.send_message(CHANNEL_ID, text=post, parse_mode=ParseMode.MARKDOWN_V2)
+        # Отправка с постером или без
+        if poster_url:
+            await bot.send_photo(
+                chat_id=CHANNEL_ID,
+                photo=poster_url,
+                caption=caption,
+                parse_mode=ParseMode.MARKDOWN_V2
+            )
+        else:
+            await bot.send_message(
+                CHANNEL_ID,
+                text=caption,
+                parse_mode=ParseMode.MARKDOWN_V2
+            )
+
         DB["posted_imdb_ids"].append(movie["imdb_id"])
         save_to_history(movie)
 
@@ -340,6 +364,36 @@ async def set_schedule_handler(message: types.Message, state: FSMContext):
         reply_markup=builder.as_markup(resize_keyboard=True)
     )
     await state.set_state(AdminStates.setting_schedule)
+
+
+# Добавляем новый обработчик для состояния установки времени
+@dp.message(AdminStates.setting_schedule)
+async def process_schedule_time(message: types.Message, state: FSMContext):
+    try:
+        user_time = message.text.strip()
+        cron_expression = time_to_cron(user_time)
+
+        # Обновляем расписание
+        DB["schedule"] = cron_expression
+
+        # Перезапускаем задание планировщика
+        scheduler.remove_job('publish_job')  # Удаляем старое задание
+        scheduler.add_job(
+            publish_scheduled_post,
+            trigger='cron',
+            **parse_cron(cron_expression),
+            id='publish_job'
+        )
+
+        await message.answer(
+            f"✅ Время публикации установлено: {user_time}",
+            reply_markup=types.ReplyKeyboardRemove()
+        )
+        await state.clear()
+        await admin_panel(message)  # Возвращаем в админ-панель с обновленными данными
+
+    except ValueError as e:
+        await message.answer(f"❌ Ошибка: {e}\nПопробуйте еще раз в формате ЧЧ:ММ")
 
 # Обработчик команды /cancel
 @dp.message(F.text == "/cancel")
@@ -703,14 +757,17 @@ async def custom_review_start(message: types.Message, state: FSMContext):
 
 # Остальные обработчики и запуск
 async def main():
+
     # Загрузка истории при старте
     history = load_history()
     DB["posted_imdb_ids"] = [m["imdb_id"] for m in history[-500:]]
 
+    # Инициализация планировщика с ID задания
     scheduler.add_job(
         publish_scheduled_post,
         trigger='cron',
-        **parse_cron(DB['schedule'])
+        **parse_cron(DB['schedule']),
+        id='publish_job'  # Добавляем идентификатор задания
     )
     scheduler.start()
 
