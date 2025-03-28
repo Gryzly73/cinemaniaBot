@@ -205,6 +205,8 @@ async def publish_scheduled_post():
         await handle_duplicate(movie)
         return
 
+    movie = await get_movie_data(DB["current_genre"])
+
     try:
         review = await generate_review(movie)
 
@@ -226,9 +228,12 @@ async def publish_scheduled_post():
         escaped_review = escape_md(review)
 
         caption = (
-            f"🎬 *{escaped_title}* \\({escaped_year}\\)\n\n"
-            f"📖 Жанр: {escaped_genre}\n"
-            f"📝 Рецензия \\({escaped_style}\\):\n{escaped_review}"
+           # f"🎬 *{escaped_title}* \\({escaped_year}\\)\n\n"
+           # f"📖 Жанр: {escaped_genre}\n"
+           # f"📝 Рецензия \\({escaped_style}\\):\n{escaped_review}"
+            f"🎬 *{escape_md(movie['title'])}* \\({escape_md(str(movie['year']))}\\)\n\n"
+            f"📖 Жанр: {escape_md(DB['current_genre'])}\n"
+            f"📝 Рецензия \\({escape_md(DB['current_style'])}\\):\n{escape_md(review)}"
         )
 
         # Отправка с постером или без
@@ -252,6 +257,7 @@ async def publish_scheduled_post():
     except Exception as e:
         logger.error(f"Ошибка публикации: {str(e)}")
         await notify_admin(f"🔥 Ошибка публикации: {str(e)}")
+
 
 async def handle_duplicate(movie: dict):
     logger.warning(f"Дубликат IMDB ID: {movie['imdb_id']}")
