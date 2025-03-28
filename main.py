@@ -18,6 +18,7 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 from datetime import datetime, time
+from functools import lru_cache
 
 # Загрузка переменных окружения
 load_dotenv()
@@ -104,6 +105,10 @@ def load_history() -> list:
     except FileNotFoundError:
         return []
 
+@lru_cache(maxsize=100)
+async def get_cached_movie(genre: str, attempt: int):
+    return await get_movie_data(genre, attempt)
+
 # OpenAI функции
 openai.api_key = OPENAI_API_KEY
 
@@ -113,30 +118,45 @@ Year: Год
 IMDB-ID: ttXXXXXX \(действительный идентификатор с IMDB\)
 Plot: Краткое описание на русском языке - без многоточий на конце предложений.
 Избегай многоточий и повторяющихся знаков препинания
+Избегай фильмов с этими ID: {avoid_ids}
 Только действительные существующие фильмы\!"""
 
 GENERAL_REVIEW_PROMPT = os.getenv("GENERAL_REVIEW_PROMPT", "Стандартные требования к рецензии")
 
-async def get_movie_data(genre: str) -> Optional[dict]:
-    attempt = 0
-    while attempt < 3:
-        try:
-            response = await openai.ChatCompletion.acreate(
-                model="gpt-4",
-                messages=[{
-                    "role": "user",
-                    "content": MOVIE_PROMPT.format(genre=genre)
-                }],
-                temperature=0.5
-            )
 
-            raw_text = response.choices[0].message.content
-            return parse_movie_response(raw_text)
+async def get_movie_data(genre: str, attempt: int = 0, used_ids: list = None):
+    if attempt >= 3:
+        return None
+    if used_ids is None:
+        used_ids = []
 
-        except Exception as e:
-            logger.error(f"Попытка {attempt + 1} неудачна: {str(e)}")
-            attempt += 1
-    return None
+    try:
+        # Экранируем и форматируем ID
+        safe_ids = [id.replace('_', r'\_') for id in used_ids]
+        avoid_ids = ", ".join(safe_ids[-50:]) if safe_ids else "нет запрещённых ID"
+
+        full_prompt = MOVIE_PROMPT.format(
+            genre=escape_md(genre),
+            avoid_ids=avoid_ids
+        )
+
+        response = await openai.ChatCompletion.acreate(
+            model="gpt-4",
+            messages=[{"role": "user", "content": full_prompt}],
+            temperature=0.7 + attempt * 0.1
+        )
+
+        raw_text = response.choices[0].message.content
+        movie = parse_movie_response(raw_text)
+
+        if not movie or movie["imdb_id"] in used_ids:
+            return await get_movie_data(genre, attempt+1, used_ids)
+
+        return movie
+
+    except Exception as e:
+        logger.error(f"Попытка {attempt + 1} неудачна: {str(e)}")
+        return await get_movie_data(genre, attempt+1, used_ids)
 
 def parse_movie_response(text: str) -> Optional[dict]:
     try:
@@ -193,13 +213,64 @@ async def generate_review(movie: dict) -> str:
         logger.error(f"Ошибка генерации: {str(e)}")
         return "Рецензия временно недоступна"
 
+async def publish_scheduled_post_with_movie(movie: dict):
+    try:
+        review = await generate_review(movie)
+        await send_post_with_media(movie, review)
+        DB["posted_imdb_ids"].append(movie["imdb_id"])
+        save_to_history(movie)
+    except Exception as e:
+        logger.error(f"Ошибка публикации: {str(e)}")
+        await notify_admin(f"🔥 Ошибка публикации: {str(e)}")
+
 # Основная логика публикации
+
+async def send_post_with_media(movie: dict, review: str):
+    movie_data = {
+        "imdb_id": movie["imdb_id"],
+        "title": movie['title'],
+        "year": movie['year']
+    }
+
+    poster_url = get_movie_poster(movie_data)
+
+    # Экранируем ВСЕ динамические данные
+    escaped_title = escape_md(movie['title'])
+    escaped_year = escape_md(str(movie['year']))
+    escaped_genre = escape_md(DB['current_genre'])
+    escaped_style = escape_md(DB['current_style'])
+    escaped_review = escape_md(review)
+
+    # Формируем текст с правильным экранированием
+    caption = (
+        f"🎬 *{escaped_title}* \\({escaped_year}\\)\n\n"
+        f"📖 Жанр: {escaped_genre}\n"
+        f"📝 Рецензия \\({escaped_style}\\):\n{escaped_review}"
+    )
+
+    if poster_url:
+        await bot.send_photo(
+            chat_id=CHANNEL_ID,
+            photo=poster_url,
+            caption=caption,
+            parse_mode=ParseMode.MARKDOWN_V2
+        )
+    else:
+        await bot.send_message(
+            CHANNEL_ID,
+            text=caption,
+            parse_mode=ParseMode.MARKDOWN_V2
+        )
+
 async def publish_scheduled_post():
-    movie = await get_movie_data(DB["current_genre"])
+    used_ids = DB["posted_imdb_ids"][-100:]  # Последние 100 фильмов
+    movie = await get_movie_data(DB["current_genre"], used_ids=used_ids)
+   # movie = await get_movie_data(DB["current_genre"])
 
     if not movie:
         await notify_admin("❌ Не удалось получить данные фильма\!")
         return
+    await publish_scheduled_post_with_movie(movie) #
 
     if movie["imdb_id"] in DB["posted_imdb_ids"]:
         await handle_duplicate(movie)
@@ -258,12 +329,15 @@ async def publish_scheduled_post():
         logger.error(f"Ошибка публикации: {str(e)}")
         await notify_admin(f"🔥 Ошибка публикации: {str(e)}")
 
-
 async def handle_duplicate(movie: dict):
     logger.warning(f"Дубликат IMDB ID: {movie['imdb_id']}")
-    new_movie = await get_movie_data(DB["current_genre"])
-    if new_movie:
-        await publish_scheduled_post()
+    used_ids = DB["posted_imdb_ids"][-100:]  # Берем последние 100 ID
+    new_movie = await get_movie_data(DB["current_genre"], used_ids=used_ids)
+
+    if new_movie and new_movie["imdb_id"] not in DB["posted_imdb_ids"]:
+        await publish_scheduled_post_with_movie(new_movie)
+    else:
+        await notify_admin(f"⚠️ Не удалось найти уникальный фильм после дубликата {movie['imdb_id']}")
 
 # Уведомления админа
 async def notify_admin(message: str):
