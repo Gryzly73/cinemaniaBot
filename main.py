@@ -360,6 +360,77 @@ async def cancel_button_handler(message: types.Message, state: FSMContext):
 async def another_review_handler(message: types.Message, state: FSMContext):
     await custom_review_start(message, state)
 
+# Модифицированный обработчик публикации
+@dp.message(F.text == "🚀 Опубликовать сейчас")
+async def publish_now_handler(message: types.Message, state: FSMContext):
+    logger.warning("start")
+    if message.from_user.id not in ADMINS:
+        return
+    logger.warning("admin ok!")
+
+    data = await state.get_data()
+    movie = data.get('movie')
+    review = data.get('review')
+
+    if movie and review:
+        try:
+            # Получаем данные для поиска постера
+            movie_data = {
+                "imdb_id": movie["imdb_id"],
+                "title": movie['title'],
+                "year": movie['year']
+            }
+
+            poster_url = get_movie_poster(movie_data)
+            logger.warning("Poster url")
+            logger.warning(poster_url)
+
+
+            # Экранирование текста
+            escaped_title = escape_md(movie['title'])
+            escaped_year = escape_md(str(movie['year']))
+            escaped_genre = escape_md(DB['current_genre'])
+            escaped_style = escape_md(DB['current_style'])
+            escaped_review = escape_md(review)
+
+            caption = (
+                f"🎬 *{escaped_title}* \\({escaped_year}\\)\n\n"
+                f"📖 Жанр: {escaped_genre}\n"
+                f"📝 Рецензия \\({escaped_style}\\):\n{escaped_review}"
+            )
+
+            # Отправка поста с постером или без
+            if poster_url:
+                await bot.send_photo(
+                    chat_id=CHANNEL_ID,
+                    photo=poster_url,
+                    caption=caption,
+                    parse_mode=ParseMode.MARKDOWN_V2
+                )
+            else:
+                await bot.send_message(
+                    CHANNEL_ID,
+                    text=caption,
+                    parse_mode=ParseMode.MARKDOWN_V2
+                )
+
+            # Сохранение в историю
+            save_to_history({
+                "imdb_id": movie["imdb_id"],
+                "title": movie['title'],
+                "year": movie['year'],
+                "plot": movie.get('plot', '')
+            })
+
+            await message.answer("✅ Рецензия опубликована\!")
+        except Exception as e:
+            logger.error(f"Ошибка публикации: {str(e)}")
+            await message.answer(f"⚠️ Ошибка публикации: {str(e)}")
+        finally:
+            await state.clear()
+    else:
+        await message.answer("⚠️ Нет рецензии для публикации\!")
+
 # Изменения в функции generate_custom_review и добавление parse_custom_review
 def parse_custom_review(text: str) -> Optional[dict]:
     try:
@@ -445,14 +516,16 @@ async def process_custom_review(message: types.Message, state: FSMContext):
         if not is_valid:
             await message.answer("⚠️ Недействительный IMDB ID\! Попробуйте еще раз")
             return
-        logger.warning(review_data)
+
         logger.warning(review_data["review"])
 
-        # Сохраняем данные
+        # Сохраняем ВСЕ данные фильма включая IMDB ID
         await state.update_data(
-            movie=review_data,
-            review=review_data["review"]
+            movie=review_data,  # содержит imdb_id
+            review=review_data["review"],
+            imdb_id=review_data["imdb_id"]  # явное сохранение ID
         )
+        await state.set_state(AdminStates.review_ready)
         logger.warning("Ok!")
 
         # Показываем превью
@@ -469,13 +542,7 @@ async def process_custom_review(message: types.Message, state: FSMContext):
             reply_markup=builder.as_markup()
         )
 
-        # Сохраняем ВСЕ данные фильма включая IMDB ID
-        await state.update_data(
-            movie=review_data,  # содержит imdb_id
-            review=review_data["review"],
-            imdb_id=review_data["imdb_id"]  # явное сохранение ID
-        )
-        await state.set_state(AdminStates.review_ready)
+
 
     except Exception as e:
         logger.error(f"Ошибка: {str(e)}")
@@ -521,76 +588,6 @@ async def handle_manual_imdb_input(message: types.Message, state: FSMContext):
         f"Новый: {imdb_id}"
     )
 
-# Модифицированный обработчик публикации
-@dp.message(F.text == "🚀 Опубликовать сейчас")
-async def publish_now_handler(message: types.Message, state: FSMContext):
-    logger.warning("start")
-    if message.from_user.id not in ADMINS:
-        return
-    logger.warning("admin ok!")
-
-    data = await state.get_data()
-    movie = data.get('movie')
-    review = data.get('review')
-
-    if movie and review:
-        try:
-            # Получаем данные для поиска постера
-            movie_data = {
-                "imdb_id": movie["imdb_id"],
-                "title": movie['title'],
-                "year": movie['year']
-            }
-
-            poster_url = get_movie_poster(movie_data)
-            logger.warning("Poster url")
-            logger.warning(poster_url)
-
-
-            # Экранирование текста
-            escaped_title = escape_md(movie['title'])
-            escaped_year = escape_md(str(movie['year']))
-            escaped_genre = escape_md(DB['current_genre'])
-            escaped_style = escape_md(DB['current_style'])
-            escaped_review = escape_md(review)
-
-            caption = (
-                f"🎬 *{escaped_title}* \\({escaped_year}\\)\n\n"
-                f"📖 Жанр: {escaped_genre}\n"
-                f"📝 Рецензия \\({escaped_style}\\):\n{escaped_review}"
-            )
-
-            # Отправка поста с постером или без
-            if poster_url:
-                await bot.send_photo(
-                    chat_id=CHANNEL_ID,
-                    photo=poster_url,
-                    caption=caption,
-                    parse_mode=ParseMode.MARKDOWN_V2
-                )
-            else:
-                await bot.send_message(
-                    CHANNEL_ID,
-                    text=caption,
-                    parse_mode=ParseMode.MARKDOWN_V2
-                )
-
-            # Сохранение в историю
-            save_to_history({
-                "imdb_id": movie["imdb_id"],
-                "title": movie['title'],
-                "year": movie['year'],
-                "plot": movie.get('plot', '')
-            })
-
-            await message.answer("✅ Рецензия опубликована\!")
-        except Exception as e:
-            logger.error(f"Ошибка публикации: {str(e)}")
-            await message.answer(f"⚠️ Ошибка публикации: {str(e)}")
-        finally:
-            await state.clear()
-    else:
-        await message.answer("⚠️ Нет рецензии для публикации\!")
 
 # Обновление обработчика возврата в админку для очистки состояния
 @dp.message(F.text == "🔙 В админку")
