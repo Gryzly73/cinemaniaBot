@@ -62,6 +62,20 @@ except Exception as e:
     logger.error(f"Error loading styles: {e}")
     STYLE_DESCRIPTIONS = {"humorous": "Стандартный стиль рецензии"}
 
+# OpenAI функции
+openai.api_key = OPENAI_API_KEY
+
+MOVIE_PROMPT = """Сгенерируй описание фильма в жанре {genre} в формате:
+Title: Название
+Year: Год
+IMDB-ID: ttXXXXXX \(действительный идентификатор с IMDB\)
+Plot: Краткое описание на русском языке - без многоточий на конце предложений.
+Избегай многоточий и повторяющихся знаков препинания
+Избегай фильмов с этими ID: {avoid_ids}
+Только действительные существующие фильмы\!"""
+
+GENERAL_REVIEW_PROMPT = os.getenv("GENERAL_REVIEW_PROMPT", "Стандартные требования к рецензии")
+
 # Утилиты
 def escape_md(text: str) -> str:
     escape_chars = '_*[]()~`>#+-=|{}.!'
@@ -101,9 +115,6 @@ async def return_to_admin_menu(message: types.Message, state: FSMContext):
 
 def admin_menu_keyboard() -> ReplyKeyboardMarkup: #
     builder = ReplyKeyboardBuilder()
-   # builder.row(KeyboardButton(text="⏰ Изменить время"))
-   # builder.row(KeyboardButton(text="🔙 В главное меню"))
-   # return builder.as_markup(resize_keyboard=True)
     # Основные кнопки
     builder.row(KeyboardButton(text="🎭 Сменить жанр"))
     builder.row(KeyboardButton(text="🖋 Сменить стиль"))
@@ -134,20 +145,6 @@ def load_history() -> list:
 @lru_cache(maxsize=100)
 async def get_cached_movie(genre: str, attempt: int):
     return await get_movie_data(genre, attempt)
-
-# OpenAI функции
-openai.api_key = OPENAI_API_KEY
-
-MOVIE_PROMPT = """Сгенерируй описание фильма в жанре {genre} в формате:
-Title: Название
-Year: Год
-IMDB-ID: ttXXXXXX \(действительный идентификатор с IMDB\)
-Plot: Краткое описание на русском языке - без многоточий на конце предложений.
-Избегай многоточий и повторяющихся знаков препинания
-Избегай фильмов с этими ID: {avoid_ids}
-Только действительные существующие фильмы\!"""
-
-GENERAL_REVIEW_PROMPT = os.getenv("GENERAL_REVIEW_PROMPT", "Стандартные требования к рецензии")
 
 def parse_movie_response(text: str) -> Optional[dict]:
     try:
@@ -340,7 +337,6 @@ async def handle_duplicate(movie: dict):
 async def publish_scheduled_post():
     used_ids = DB["posted_imdb_ids"][-100:]  # Последние 100 фильмов
     movie = await get_movie_data(DB["current_genre"], used_ids=used_ids)
-   # movie = await get_movie_data(DB["current_genre"])
 
     if not movie:
         await notify_admin("❌ Не удалось получить данные фильма\!")
@@ -350,8 +346,6 @@ async def publish_scheduled_post():
     if movie["imdb_id"] in DB["posted_imdb_ids"]:
         await handle_duplicate(movie)
         return
-
-   # movie = await get_movie_data(DB["current_genre"])
 
     try:
         review = await generate_review(movie)
@@ -374,9 +368,6 @@ async def publish_scheduled_post():
         escaped_review = escape_md(review)
 
         caption = (
-           # f"🎬 *{escape_md(movie['title'])}* \\({escape_md(str(movie['year']))}\\)\n\n"
-          #  f"📖 Жанр: {escape_md(DB['current_genre'])}\n"
-           # f"📝 Рецензия \\({escape_md(DB['current_style'])}\\):\n{escape_md(review)}"
             f"🎬 *{escaped_title}* \\({escaped_year}\\)\n\n"
             f"📖 Жанр: {escaped_genre}\n"
             f"📝 Рецензия \\({escaped_style}\\):\n{escaped_review}"
@@ -438,7 +429,8 @@ async def publish_now_handler(message: types.Message, state: FSMContext):
     data = await state.get_data()
     movie = data.get('movie')
     review = data.get('review')
-
+    logger.info("movie")
+    logger.info(movie)
     if movie and review:
         try:
             # Получаем данные для поиска постера
@@ -456,12 +448,14 @@ async def publish_now_handler(message: types.Message, state: FSMContext):
             escaped_title = escape_md(movie['title'])
             escaped_year = escape_md(str(movie['year']))
             escaped_style = escape_md(DB['current_style'])
+          #  escaped_plot = escape_md(movie['plot'])
             escaped_genre= "Выбор пользователя"
             escaped_review = escape_md(review)
 
             caption = (
                 f"🎬 *{escaped_title}* \\({escaped_year}\\)\n\n"
                 f"📖 Жанр: {escaped_genre}\n"
+                f"📚 Сюжет: {escape_md(movie['plot'])[:200]}\n\n"
                 f"📝 Рецензия \\({escaped_style}\\):\n{escaped_review}"
             )
 
