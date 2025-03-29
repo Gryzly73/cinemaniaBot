@@ -3,7 +3,6 @@ import json
 import logging
 import asyncio
 import aiohttp
-import uuid
 import re
 import requests
 from typing import Dict, Optional
@@ -68,7 +67,6 @@ def escape_md(text: str) -> str:
     escape_chars = '_*[]()~`>#+-=|{}.!'
     return re.sub(f'([{"".join(re.escape(c) for c in escape_chars)}])', r'\\\1', str(text))
 
-
 def time_to_cron(user_time: str) -> str:
     error_msg = (
         "Неправильный формат времени\!\n"
@@ -94,10 +92,24 @@ def parse_cron(cron_str: str) -> dict:
         "day_of_week": parts[4]
     }
 
-def admin_menu_keyboard():
+# --- Универсальные обработчики ---
+@dp.message(F.text.in_(["🔙 В меню", "/admin"]))
+async def return_to_admin_menu(message: types.Message, state: FSMContext):
+    """Обработчик возврата в админ-панель из любого места"""
+    await state.clear()
+    await admin_panel(message)
+
+def admin_menu_keyboard() -> ReplyKeyboardMarkup: #
     builder = ReplyKeyboardBuilder()
+   # builder.row(KeyboardButton(text="⏰ Изменить время"))
+   # builder.row(KeyboardButton(text="🔙 В главное меню"))
+   # return builder.as_markup(resize_keyboard=True)
+    # Основные кнопки
+    builder.row(KeyboardButton(text="🎭 Сменить жанр"))
+    builder.row(KeyboardButton(text="🖋 Сменить стиль"))
     builder.row(KeyboardButton(text="⏰ Изменить время"))
-    builder.row(KeyboardButton(text="🔙 В главное меню"))
+    # Кнопка возврата внизу
+    builder.row(KeyboardButton(text="🔙 В меню"))
     return builder.as_markup(resize_keyboard=True)
 
 # Работа с историей фильмов
@@ -395,6 +407,26 @@ async def publish_scheduled_post():
         await notify_admin(f"🔥 Ошибка публикации: {str(e)}")
 
 # ОБРАБОТЧИКИ СООБЩЕНИЙ
+
+@dp.message(F.text == "/start")
+async def cmd_start(message: types.Message):
+    if message.from_user.id in ADMINS:
+        # Прямой переход в админ-панель для администраторов
+        await admin_panel(message)
+    else:
+        # Стандартное меню для обычных пользователей
+        markup = ReplyKeyboardMarkup(
+            keyboard=[
+                [KeyboardButton(text="🎬 Найти фильм")],
+                [KeyboardButton(text="ℹ️ Помощь")]
+            ],
+            resize_keyboard=True
+        )
+        await message.answer(
+            "Добро пожаловать в CinemaBot\! 🍿\nВыберите действие:",
+            reply_markup=markup
+        )
+
 # Модифицированный обработчик публикации
 @dp.message(F.text == "🚀 Опубликовать сейчас")
 async def publish_now_handler(message: types.Message, state: FSMContext):
@@ -420,12 +452,11 @@ async def publish_now_handler(message: types.Message, state: FSMContext):
             logger.warning("Poster url")
             logger.warning(poster_url)
 
-
             # Экранирование текста
             escaped_title = escape_md(movie['title'])
             escaped_year = escape_md(str(movie['year']))
-            escaped_genre = escape_md(DB['current_genre'])
             escaped_style = escape_md(DB['current_style'])
+            escaped_genre= "Выбор пользователя"
             escaped_review = escape_md(review)
 
             caption = (
@@ -665,16 +696,20 @@ async def process_custom_review(message: types.Message, state: FSMContext):
         review_data = await generate_custom_review(message.text)
 
         if not review_data:
-            await message.answer("❌ Не удалось сгенерировать рецензию")
-            await state.clear()
-            return
-        logger.warning(review_data["imdb_id"])
+         #   Создаем  клавиатуру
+            builder = ReplyKeyboardBuilder()
+            builder.row(KeyboardButton(text="🔙 В меню"))
+            await message.answer(
+                "❌ Не удалось распознать фильм. Пожалуйста, проверьте название и попробуйте ввести его еще раз или вернитесь в меню.",
+                reply_markup=builder.as_markup(resize_keyboard=True)
+            )
+            return  # Состояние не очищается, пользователь остается в custom_review
         # Верификация IMDB ID
         is_valid = await verify_imdb_id(review_data["imdb_id"])
 
         if not is_valid:
-            await message.answer("⚠️ Недействительный IMDB ID\! Попробуйте еще раз")
-            return
+            await message.answer("⚠️ Недействительный IMDB ID\! Постер не будет сформирован\!\n")
+         #   return!
 
         logger.warning(review_data["review"])
 
@@ -701,8 +736,6 @@ async def process_custom_review(message: types.Message, state: FSMContext):
             reply_markup=builder.as_markup()
         )
 
-
-
     except Exception as e:
         logger.error(f"Ошибка: {str(e)}")
         await message.answer("❌ Произошла ошибка, попробуйте снова")
@@ -710,40 +743,55 @@ async def process_custom_review(message: types.Message, state: FSMContext):
 
 @dp.message(F.text.startswith("tt") and AdminStates.review_ready)
 async def handle_manual_imdb_input(message: types.Message, state: FSMContext):
+    # Проверка команды возврата
+    if message.text.lower() in ["меню", "/admin", "🔙 в меню"]:
+        await state.clear()
+        await admin_panel(message)
+        return
+
     data = await state.get_data()
     current_imdb = data.get('imdb_id', '')  # получаем текущий ID из состояния
 
    # imdb_id = message.text.strip()
     imdb_id = current_imdb
 
-    logger.warning("imfb")
+    logger.warning("imdb")
     logger.warning(message.text)
     logger.warning(message.text.strip())
 
 
     # Проверка формата
     if not re.match(r"^tt\d{7,8}$", imdb_id):
-        await message.answer("❌ Неверный формат IMDB ID")
+        await message.answer(
+            "❌ Неверный формат IMDB ID. Пример: tt12345678\nПопробуйте снова:",
+            reply_markup=return_kb.as_markup(resize_keyboard=True)
+        )
         return
 
     # Проверка существования фильма
     is_valid = await verify_imdb_id(imdb_id)
     if not is_valid:
-        await message.answer("❌ Фильм с таким ID не найден")
+        await message.answer(
+            "❌ Фильм с таким ID не найден\nПопробуйте другой ID:",
+            reply_markup=return_kb.as_markup(resize_keyboard=True)
+        )
         return
 
-    # Обновляем данные в состоянии
-    data['movie']['imdb_id'] = imdb_id
-    await state.update_data(
-        movie=data['movie'],
-        imdb_id=imdb_id  # обновляем ID в состоянии
-    )
+    # Обновляем данные
+    new_data = data['movie'].copy()
+    new_data['imdb_id'] = imdb_id
+    await state.update_data(movie=new_data, imdb_id=imdb_id)
 
-    # Для наглядности выводим обновлённые данные
+    # Клавиатура после успешного обновления
+    success_kb = ReplyKeyboardBuilder()
+    success_kb.row(KeyboardButton(text="🚀 Опубликовать сейчас"))
+    success_kb.row(KeyboardButton(text="🔙 В меню"))
+
     await message.answer(
-        f"✅ IMDB ID успешно обновлен:\n"
-        f"Старый: {current_imdb}\n"
-        f"Новый: {imdb_id}"
+        f"✅ IMDB ID обновлен:\n"
+        f"Новый ID: {imdb_id}\n\n"
+        f"Выберите действие:",
+        reply_markup=success_kb.as_markup(resize_keyboard=True)
     )
 
 # Обновление обработчика возврата в админку для очистки состояния
@@ -770,34 +818,11 @@ async def style_selected(callback: types.CallbackQuery, state: FSMContext):
     await state.clear()
     await admin_panel(callback.message)  # Возврат в админ-панель
 
-# Обработчик кнопки "🔙 В меню"
-@dp.message(F.text == "🔙 В меню")
-async def back_to_menu_handler(message: types.Message, state: FSMContext):
-    await state.clear()
-    await cmd_start(message)
-
-#Возврат к начальному меню
-@dp.message(F.text == "/start")
-async def cmd_start(message: types.Message):
-    if message.from_user.id in ADMINS:
-        # Прямой переход в админ-панель для администраторов
-        await admin_panel(message)
-    else:
-        # Стандартное меню для обычных пользователей
-        markup = ReplyKeyboardMarkup(
-            keyboard=[
-                [KeyboardButton(text="🎬 Найти фильм")],
-                [KeyboardButton(text="ℹ️ Помощь")]
-            ],
-            resize_keyboard=True
-        )
-        await message.answer(
-            "Добро пожаловать в CinemaBot\! 🍿\nВыберите действие:",
-            reply_markup=markup
-        )
-
 async def admin_panel(message: types.Message):
     if message.from_user.id not in ADMINS:
+        print("Id admin:")
+        print(message.from_user.id)
+        print(ADMINS)
         await message.answer("⛔ Доступ запрещен\!")
         return
 
@@ -852,6 +877,22 @@ async def custom_review_start(message: types.Message, state: FSMContext):
         reply_markup=types.ReplyKeyboardRemove()
     )
     await state.set_state(AdminStates.custom_review)
+
+# Новый обработчик для некорректного ввода в админ-панели
+@dp.message(F.from_user.id.in_(ADMINS))
+async def handle_admin_invalid_input(message: types.Message, state: FSMContext):
+    current_state = await state.get_state()
+    allowed_commands = [
+        "🎭 Сменить жанр", "🖋 Сменить стиль", "⏰ Изменить время",
+        "🚀 Опубликовать сейчас", "📝 Создать рецензию", "🔙 В меню",
+        "/start", "/admin"
+    ]
+
+    # Если пользователь не в состоянии и ввел неизвестную команду
+    if current_state is None and message.text not in allowed_commands:
+       # await message.answer("Пожалуйста, выберите вариант из списка ниже\.")
+        await message.answer("ℹ️ Пожалуйста, выберите вариант из списка ниже\.")
+        await admin_panel(message)  # <-- Добавляем вызов админ-панели
 
 # Остальные обработчики и запуск
 async def main():
