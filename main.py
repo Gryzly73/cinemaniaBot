@@ -61,16 +61,24 @@ try:
         STYLE_DESCRIPTIONS = json.load(f)
 except Exception as e:
     logger.error(f"Error loading styles: {e}")
-    STYLE_DESCRIPTIONS = {"default": "Стандартный стиль рецензии"}
+    STYLE_DESCRIPTIONS = {"humorous": "Стандартный стиль рецензии"}
 
 # Утилиты
 def escape_md(text: str) -> str:
     escape_chars = '_*[]()~`>#+-=|{}.!'
     return re.sub(f'([{"".join(re.escape(c) for c in escape_chars)}])', r'\\\1', str(text))
 
+
 def time_to_cron(user_time: str) -> str:
+    error_msg = (
+        "Неправильный формат времени\!\n"
+        "Используйте ЧЧ:ММ \(например 09:30\)\n"
+        "Диапазон времени: 00:00 \- 23:59"
+    )
+
     if not re.match(r"^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$", user_time):
-        raise ValueError("Неверный формат времени")
+        raise ValueError(error_msg)  # Более подробное сообщение
+
     hours, minutes = map(int, user_time.split(':'))
     return f"{minutes} {hours} * * *"
 
@@ -85,6 +93,12 @@ def parse_cron(cron_str: str) -> dict:
         "month": parts[3],
         "day_of_week": parts[4]
     }
+
+def admin_menu_keyboard():
+    builder = ReplyKeyboardBuilder()
+    builder.row(KeyboardButton(text="⏰ Изменить время"))
+    builder.row(KeyboardButton(text="🔙 В главное меню"))
+    return builder.as_markup(resize_keyboard=True)
 
 # Работа с историей фильмов
 def save_to_history(movie: dict):
@@ -273,7 +287,8 @@ async def send_post_with_media(movie: dict, review: str):
         f"📖 Жанр: {escaped_genre}\n"
         f"📝 Рецензия \\({escaped_style}\\):\n{escaped_review}"
     )
-
+    logger.info(f"Подпись: {caption} ")
+    logger.info(f"Длина подписи: {len(caption)} символов")
     if poster_url:
         await bot.send_photo(
             chat_id=CHANNEL_ID,
@@ -318,7 +333,7 @@ async def publish_scheduled_post():
     if not movie:
         await notify_admin("❌ Не удалось получить данные фильма\!")
         return
-    await publish_scheduled_post_with_movie(movie) #
+   # await publish_scheduled_post_with_movie(movie) #
 
     if movie["imdb_id"] in DB["posted_imdb_ids"]:
         await handle_duplicate(movie)
@@ -354,6 +369,8 @@ async def publish_scheduled_post():
             f"📖 Жанр: {escaped_genre}\n"
             f"📝 Рецензия \\({escaped_style}\\):\n{escaped_review}"
         )
+        logger.info(f"Подпись: {caption} ")
+        logger.info(f"Длина подписи: {len(caption)} символов")
 
         # Отправка с постером или без
         if poster_url:
@@ -528,7 +545,13 @@ async def process_schedule_time(message: types.Message, state: FSMContext):
         await admin_panel(message)  # Возвращаем в админ-панель с обновленными данными
 
     except ValueError as e:
-        await message.answer(f"❌ Ошибка: {e}\nПопробуйте еще раз в формате ЧЧ:ММ")
+        # await message.answer(f"❌ Ошибка: {e}\nПопробуйте еще раз в формате ЧЧ:ММ")
+        await message.answer(
+            f"❌ {str(e)}\nИспользуйте формат ЧЧ:ММ \(например 09:30\)",
+            reply_markup=admin_menu_keyboard()  # Клавиатура с кнопкой "Назад"
+        )
+        await state.clear()
+        await admin_panel(message)  # Возврат в админ-панель
 
 # Обработчик команды /cancel
 @dp.message(F.text == "/cancel")
