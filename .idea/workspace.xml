@@ -1,0 +1,466 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="AutoImportSettings">
+    <option name="autoReloadType" value="SELECTIVE" />
+  </component>
+  <component name="ChangeListManager">
+    <list default="true" id="6bd0ef88-5848-431e-80fc-55e7ab11b401" name="Changes" comment="free .env readme" />
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="FileTemplateManagerImpl">
+    <option name="RECENT_TEMPLATES">
+      <list>
+        <option value="package.json" />
+        <option value="Python Script" />
+      </list>
+    </option>
+  </component>
+  <component name="Git.Settings">
+    <option name="RECENT_BRANCH_BY_REPOSITORY">
+      <map>
+        <entry key="$PROJECT_DIR$" value="versionShed_6" />
+      </map>
+    </option>
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+    <option name="RESET_MODE" value="HARD" />
+  </component>
+  <component name="GitHubPullRequestSearchHistory">{
+  &quot;lastFilter&quot;: {
+    &quot;state&quot;: &quot;OPEN&quot;,
+    &quot;assignee&quot;: &quot;Gryzly73&quot;
+  }
+}</component>
+  <component name="GithubPullRequestsUISettings">{
+  &quot;selectedUrlAndAccountId&quot;: {
+    &quot;url&quot;: &quot;https://github.com/Gryzly73/cinemaniaBot&quot;,
+    &quot;accountId&quot;: &quot;ff07da4b-285d-408d-b412-3cadf0ce7f75&quot;
+  }
+}</component>
+  <component name="ProjectColorInfo">{
+  &quot;associatedIndex&quot;: 5
+}</component>
+  <component name="ProjectId" id="2udAj2bnPNjhHwHbFvPve8BhFJd" />
+  <component name="ProjectLevelVcsManager" settingsEditedManually="true" />
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showLibraryContents" value="true" />
+  </component>
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;Python.main.executor&quot;: &quot;Run&quot;,
+    &quot;Python.test_search.executor&quot;: &quot;Run&quot;,
+    &quot;Python.test_searchGpt.executor&quot;: &quot;Run&quot;,
+    &quot;Python.tmp.executor&quot;: &quot;Run&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
+    &quot;com.codeium.enabled&quot;: &quot;true&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;main&quot;,
+    &quot;last_opened_file_path&quot;: &quot;C:/Users/Asus/PycharmProjects/PythonProjectCinemaBot&quot;,
+    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
+    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
+    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
+    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
+    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
+    &quot;settings.editor.selected.configurable&quot;: &quot;org.jetbrains.plugins.github.ui.GithubSettingsConfigurable&quot;,
+    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
+  },
+  &quot;keyToStringList&quot;: {
+    &quot;ChangesTree.GroupingKeys&quot;: []
+  }
+}</component>
+  <component name="RecentsManager">
+    <key name="MoveFile.RECENT_KEYS">
+      <recent name="C:\Users\Asus\PycharmProjects\PythonProjectCinemaBot" />
+      <recent name="C:\Users\Asus\PycharmProjects\PythonProjectCinemaBot\.venv" />
+    </key>
+  </component>
+  <component name="SharedIndexes">
+    <attachedChunks>
+      <set>
+        <option value="bundled-python-sdk-495700d161d3-aa17d162503b-com.jetbrains.pycharm.community.sharedIndexes.bundled-PC-243.22562.220" />
+      </set>
+    </attachedChunks>
+  </component>
+  <component name="SpellCheckerSettings" RuntimeDictionaries="0" Folders="0" CustomDictionaries="0" DefaultDictionary="application-level" UseSingleDictionary="true" transferred="true" />
+  <component name="TaskManager">
+    <task active="true" id="Default" summary="Default task">
+      <changelist id="6bd0ef88-5848-431e-80fc-55e7ab11b401" name="Changes" comment="" />
+      <created>1742568210003</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1742568210003</updated>
+      <workItem from="1742568211760" duration="1352000" />
+      <workItem from="1742570667406" duration="8733000" />
+      <workItem from="1742638479985" duration="25292000" />
+      <workItem from="1742734242954" duration="7005000" />
+      <workItem from="1742758551178" duration="55000" />
+      <workItem from="1742759112838" duration="3893000" />
+      <workItem from="1742767778505" duration="5660000" />
+      <workItem from="1742807778044" duration="45000" />
+      <workItem from="1742807895623" duration="34092000" />
+      <workItem from="1742913815595" duration="13991000" />
+      <workItem from="1742978164669" duration="31807000" />
+      <workItem from="1743099878344" duration="14614000" />
+      <workItem from="1743119223315" duration="1375000" />
+      <workItem from="1743155526910" duration="52713000" />
+      <workItem from="1743299145589" duration="116000" />
+      <workItem from="1743299667903" duration="25000" />
+      <workItem from="1743300760686" duration="105000" />
+    </task>
+    <task id="LOCAL-00001" summary="zero">
+      <option name="closed" value="true" />
+      <created>1742571391009</created>
+      <option name="number" value="00001" />
+      <option name="presentableId" value="LOCAL-00001" />
+      <option name="project" value="LOCAL" />
+      <updated>1742571391009</updated>
+    </task>
+    <task id="LOCAL-00002" summary="google_search работает !">
+      <option name="closed" value="true" />
+      <created>1742638147384</created>
+      <option name="number" value="00002" />
+      <option name="presentableId" value="LOCAL-00002" />
+      <option name="project" value="LOCAL" />
+      <updated>1742638147384</updated>
+    </task>
+    <task id="LOCAL-00003" summary="код запускается без ошибок, бот не реагирует">
+      <option name="closed" value="true" />
+      <created>1742649313401</created>
+      <option name="number" value="00003" />
+      <option name="presentableId" value="LOCAL-00003" />
+      <option name="project" value="LOCAL" />
+      <updated>1742649313401</updated>
+    </task>
+    <task id="LOCAL-00004" summary="ответ с рецензией кидает не в бот, промт надо дорабатывать">
+      <option name="closed" value="true" />
+      <created>1742670469825</created>
+      <option name="number" value="00004" />
+      <option name="presentableId" value="LOCAL-00004" />
+      <option name="project" value="LOCAL" />
+      <updated>1742670469825</updated>
+    </task>
+    <task id="LOCAL-00005" summary="почищенный проект немного исправленный промт">
+      <option name="closed" value="true" />
+      <created>1742672118259</created>
+      <option name="number" value="00005" />
+      <option name="presentableId" value="LOCAL-00005" />
+      <option name="project" value="LOCAL" />
+      <updated>1742672118259</updated>
+    </task>
+    <task id="LOCAL-00006" summary="Заработал с меню, работа меню не вполне устраивает, выбирает стили, генерит фильм по названию или описанию">
+      <option name="closed" value="true" />
+      <created>1742739820091</created>
+      <option name="number" value="00006" />
+      <option name="presentableId" value="LOCAL-00006" />
+      <option name="project" value="LOCAL" />
+      <updated>1742739820091</updated>
+    </task>
+    <task id="LOCAL-00007" summary="Что то запускается ничего пока в меню бота не видно как не видно и самого меню в боте">
+      <option name="closed" value="true" />
+      <created>1742753431590</created>
+      <option name="number" value="00007" />
+      <option name="presentableId" value="LOCAL-00007" />
+      <option name="project" value="LOCAL" />
+      <updated>1742753431590</updated>
+    </task>
+    <task id="LOCAL-00008" summary="Опубликовала со 2й попытки, слишком длинная рецензия, по факту только текст">
+      <option name="closed" value="true" />
+      <created>1742812160856</created>
+      <option name="number" value="00008" />
+      <option name="presentableId" value="LOCAL-00008" />
+      <option name="project" value="LOCAL" />
+      <updated>1742812160856</updated>
+    </task>
+    <task id="LOCAL-00009" summary="нормально с установкой настроек, как публикует по расписанию пока не ясно и формат ввода времени неудобный, стоит уточнить что запрашивать надо только время">
+      <option name="closed" value="true" />
+      <created>1742819171348</created>
+      <option name="number" value="00009" />
+      <option name="presentableId" value="LOCAL-00009" />
+      <option name="project" value="LOCAL" />
+      <updated>1742819171348</updated>
+    </task>
+    <task id="LOCAL-00010" summary="Размещает по расписанию, нет 1. контроля уникальности 2. произвольного описания для фильма 3. картинок">
+      <option name="closed" value="true" />
+      <created>1742834908703</created>
+      <option name="number" value="00010" />
+      <option name="presentableId" value="LOCAL-00010" />
+      <option name="project" value="LOCAL" />
+      <updated>1742834908703</updated>
+    </task>
+    <task id="LOCAL-00011" summary="первый который не работает">
+      <option name="closed" value="true" />
+      <created>1742845599122</created>
+      <option name="number" value="00011" />
+      <option name="presentableId" value="LOCAL-00011" />
+      <option name="project" value="LOCAL" />
+      <updated>1742845599122</updated>
+    </task>
+    <task id="LOCAL-00012" summary="то же самое без закомент">
+      <option name="closed" value="true" />
+      <created>1742845695644</created>
+      <option name="number" value="00012" />
+      <option name="presentableId" value="LOCAL-00012" />
+      <option name="project" value="LOCAL" />
+      <updated>1742845695644</updated>
+    </task>
+    <task id="LOCAL-00013" summary="запускается не проверено время, избегает дублей">
+      <option name="closed" value="true" />
+      <created>1742851218755</created>
+      <option name="number" value="00013" />
+      <option name="presentableId" value="LOCAL-00013" />
+      <option name="project" value="LOCAL" />
+      <updated>1742851218758</updated>
+    </task>
+    <task id="LOCAL-00014" summary="в публикации по описанию делает ошибку - генерит новое описание">
+      <option name="closed" value="true" />
+      <created>1742928853697</created>
+      <option name="number" value="00014" />
+      <option name="presentableId" value="LOCAL-00014" />
+      <option name="project" value="LOCAL" />
+      <updated>1742928853697</updated>
+    </task>
+    <task id="LOCAL-00015" summary="опубликовал корректно по запросу">
+      <option name="closed" value="true" />
+      <created>1742935826446</created>
+      <option name="number" value="00015" />
+      <option name="presentableId" value="LOCAL-00015" />
+      <option name="project" value="LOCAL" />
+      <updated>1742935826446</updated>
+    </task>
+    <task id="LOCAL-00016" summary="Остановился на Ошибка: Telegram server says - Bad Request: can't parse entities: Character '(' is reserved and must be escaped with the preceding '\'">
+      <option name="closed" value="true" />
+      <created>1743106232804</created>
+      <option name="number" value="00016" />
+      <option name="presentableId" value="LOCAL-00016" />
+      <option name="project" value="LOCAL" />
+      <updated>1743106232804</updated>
+    </task>
+    <task id="LOCAL-00017" summary="почему то не публикует, хотя ошибки не выдает">
+      <option name="closed" value="true" />
+      <created>1743115884019</created>
+      <option name="number" value="00017" />
+      <option name="presentableId" value="LOCAL-00017" />
+      <option name="project" value="LOCAL" />
+      <updated>1743115884019</updated>
+    </task>
+    <task id="LOCAL-00018" summary="почему то не публикует, хотя ошибки не выдает">
+      <option name="closed" value="true" />
+      <created>1743115912569</created>
+      <option name="number" value="00018" />
+      <option name="presentableId" value="LOCAL-00018" />
+      <option name="project" value="LOCAL" />
+      <updated>1743115912569</updated>
+    </task>
+    <task id="LOCAL-00019" summary="почему то не публикует, хотя ошибки не выдает">
+      <option name="closed" value="true" />
+      <created>1743118651764</created>
+      <option name="number" value="00019" />
+      <option name="presentableId" value="LOCAL-00019" />
+      <option name="project" value="LOCAL" />
+      <updated>1743118651764</updated>
+    </task>
+    <task id="LOCAL-00020" summary="Ура публикует постеры">
+      <option name="closed" value="true" />
+      <created>1743120595986</created>
+      <option name="number" value="00020" />
+      <option name="presentableId" value="LOCAL-00020" />
+      <option name="project" value="LOCAL" />
+      <updated>1743120595986</updated>
+    </task>
+    <task id="LOCAL-00021" summary="опять неэкраннированные. Вроде размещает по расписанию">
+      <option name="closed" value="true" />
+      <created>1743158562046</created>
+      <option name="number" value="00021" />
+      <option name="presentableId" value="LOCAL-00021" />
+      <option name="project" value="LOCAL" />
+      <updated>1743158562046</updated>
+    </task>
+    <task id="LOCAL-00022" summary="Размещает по расписанию с постерами, проблема с дубликатами">
+      <option name="closed" value="true" />
+      <created>1743161628892</created>
+      <option name="number" value="00022" />
+      <option name="presentableId" value="LOCAL-00022" />
+      <option name="project" value="LOCAL" />
+      <updated>1743161628892</updated>
+    </task>
+    <task id="LOCAL-00023" summary="Размещает по расписанию с постерами, доработать меню">
+      <option name="closed" value="true" />
+      <created>1743168362472</created>
+      <option name="number" value="00023" />
+      <option name="presentableId" value="LOCAL-00023" />
+      <option name="project" value="LOCAL" />
+      <updated>1743168362472</updated>
+    </task>
+    <task id="LOCAL-00024" summary="не размещает по расписанию ((">
+      <option name="closed" value="true" />
+      <created>1743180987826</created>
+      <option name="number" value="00024" />
+      <option name="presentableId" value="LOCAL-00024" />
+      <option name="project" value="LOCAL" />
+      <updated>1743180987826</updated>
+    </task>
+    <task id="LOCAL-00025" summary="не размещает по расписанию ((">
+      <option name="closed" value="true" />
+      <created>1743189722281</created>
+      <option name="number" value="00025" />
+      <option name="presentableId" value="LOCAL-00025" />
+      <option name="project" value="LOCAL" />
+      <updated>1743189722281</updated>
+    </task>
+    <task id="LOCAL-00026" summary="Пока все ок кроме нюансов...">
+      <option name="closed" value="true" />
+      <created>1743241814427</created>
+      <option name="number" value="00026" />
+      <option name="presentableId" value="LOCAL-00026" />
+      <option name="project" value="LOCAL" />
+      <updated>1743241814427</updated>
+    </task>
+    <task id="LOCAL-00027" summary="Пока все ок, кроме - не передает содержание в группу">
+      <option name="closed" value="true" />
+      <created>1743278755897</created>
+      <option name="number" value="00027" />
+      <option name="presentableId" value="LOCAL-00027" />
+      <option name="project" value="LOCAL" />
+      <updated>1743278755898</updated>
+    </task>
+    <task id="LOCAL-00028" summary="передал содержание в группу, надо заполнить hepl, убрать style">
+      <option name="closed" value="true" />
+      <created>1743283821084</created>
+      <option name="number" value="00028" />
+      <option name="presentableId" value="LOCAL-00028" />
+      <option name="project" value="LOCAL" />
+      <updated>1743283821084</updated>
+    </task>
+    <task id="LOCAL-00029" summary="передал содержание в группу, надо заполнить hepl, убрать style пока не исправилось">
+      <option name="closed" value="true" />
+      <created>1743286878924</created>
+      <option name="number" value="00029" />
+      <option name="presentableId" value="LOCAL-00029" />
+      <option name="project" value="LOCAL" />
+      <updated>1743286878924</updated>
+    </task>
+    <task id="LOCAL-00030" summary="передал содержание в группу, надо заполнить hepl, убрать style пока не исправилось">
+      <option name="closed" value="true" />
+      <created>1743382127029</created>
+      <option name="number" value="00030" />
+      <option name="presentableId" value="LOCAL-00030" />
+      <option name="project" value="LOCAL" />
+      <updated>1743382127029</updated>
+    </task>
+    <task id="LOCAL-00031" summary="free .env">
+      <option name="closed" value="true" />
+      <created>1743383813491</created>
+      <option name="number" value="00031" />
+      <option name="presentableId" value="LOCAL-00031" />
+      <option name="project" value="LOCAL" />
+      <updated>1743383813491</updated>
+    </task>
+    <task id="LOCAL-00032" summary="free .env">
+      <option name="closed" value="true" />
+      <created>1743411049363</created>
+      <option name="number" value="00032" />
+      <option name="presentableId" value="LOCAL-00032" />
+      <option name="project" value="LOCAL" />
+      <updated>1743411049363</updated>
+    </task>
+    <task id="LOCAL-00033" summary="free .env">
+      <option name="closed" value="true" />
+      <created>1743413977378</created>
+      <option name="number" value="00033" />
+      <option name="presentableId" value="LOCAL-00033" />
+      <option name="project" value="LOCAL" />
+      <updated>1743413977378</updated>
+    </task>
+    <task id="LOCAL-00034" summary="free .env">
+      <option name="closed" value="true" />
+      <created>1743414839879</created>
+      <option name="number" value="00034" />
+      <option name="presentableId" value="LOCAL-00034" />
+      <option name="project" value="LOCAL" />
+      <updated>1743414839879</updated>
+    </task>
+    <task id="LOCAL-00035" summary="free .env">
+      <option name="closed" value="true" />
+      <created>1743414867161</created>
+      <option name="number" value="00035" />
+      <option name="presentableId" value="LOCAL-00035" />
+      <option name="project" value="LOCAL" />
+      <updated>1743414867161</updated>
+    </task>
+    <task id="LOCAL-00036" summary="free .env">
+      <option name="closed" value="true" />
+      <created>1743415460191</created>
+      <option name="number" value="00036" />
+      <option name="presentableId" value="LOCAL-00036" />
+      <option name="project" value="LOCAL" />
+      <updated>1743415460191</updated>
+    </task>
+    <task id="LOCAL-00037" summary="free .env readme">
+      <option name="closed" value="true" />
+      <created>1743415917052</created>
+      <option name="number" value="00037" />
+      <option name="presentableId" value="LOCAL-00037" />
+      <option name="project" value="LOCAL" />
+      <updated>1743415917052</updated>
+    </task>
+    <option name="localTasksCounter" value="38" />
+    <servers />
+  </component>
+  <component name="TypeScriptGeneratedFilesManager">
+    <option name="version" value="3" />
+  </component>
+  <component name="Vcs.Log.Tabs.Properties">
+    <option name="TAB_STATES">
+      <map>
+        <entry key="MAIN">
+          <value>
+            <State>
+              <option name="CUSTOM_BOOLEAN_PROPERTIES">
+                <map>
+                  <entry key="Show.Git.Branches" value="true" />
+                </map>
+              </option>
+            </State>
+          </value>
+        </entry>
+      </map>
+    </option>
+  </component>
+  <component name="VcsManagerConfiguration">
+    <MESSAGE value="ответ с рецензией кидает не в бот, промт надо дорабатывать" />
+    <MESSAGE value="почищенный проект немного исправленный промт" />
+    <MESSAGE value="Заработал с меню, работа меню не вполне устраивает, выбирает стили, генерит фильм по названию или описанию" />
+    <MESSAGE value="Что то запускается ничего пока в меню бота не видно как не видно и самого меню в боте" />
+    <MESSAGE value="Опубликовала со 2й попытки, слишком длинная рецензия, по факту только текст" />
+    <MESSAGE value="нормально с установкой настроек, как публикует по расписанию пока не ясно и формат ввода времени неудобный, стоит уточнить что запрашивать надо только время" />
+    <MESSAGE value="Размещает по расписанию, нет 1. контроля уникальности 2. произвольного описания для фильма 3. картинок" />
+    <MESSAGE value="первый который не работает" />
+    <MESSAGE value="то же самое без закомент" />
+    <MESSAGE value="запускается не проверено время, избегает дублей" />
+    <MESSAGE value="в публикации по описанию делает ошибку - генерит новое описание" />
+    <MESSAGE value="опубликовал корректно по запросу" />
+    <MESSAGE value="Остановился на Ошибка: Telegram server says - Bad Request: can't parse entities: Character '(' is reserved and must be escaped with the preceding '\'" />
+    <MESSAGE value="почему то не публикует, хотя ошибки не выдает" />
+    <MESSAGE value="Ура публикует постеры" />
+    <MESSAGE value="опять неэкраннированные. Вроде размещает по расписанию" />
+    <MESSAGE value="Размещает по расписанию с постерами, проблема с дубликатами" />
+    <MESSAGE value="Размещает по расписанию с постерами, доработать меню" />
+    <MESSAGE value="не размещает по расписанию ((" />
+    <MESSAGE value="Пока все ок кроме нюансов..." />
+    <MESSAGE value="Пока все ок, кроме - не передает содержание в группу" />
+    <MESSAGE value="передал содержание в группу, надо заполнить hepl, убрать style" />
+    <MESSAGE value="передал содержание в группу, надо заполнить hepl, убрать style пока не исправилось" />
+    <MESSAGE value="free .env" />
+    <MESSAGE value="free .env readme" />
+    <option name="LAST_COMMIT_MESSAGE" value="free .env readme" />
+  </component>
+  <component name="com.intellij.coverage.CoverageDataManagerImpl">
+    <SUITE FILE_PATH="coverage/PythonProjectCinemaBot$test_searchGpt.coverage" NAME="test_searchGpt Coverage Results" MODIFIED="1742601881861" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
+    <SUITE FILE_PATH="coverage/PythonProjectCinemaBot$main.coverage" NAME="main Coverage Results" MODIFIED="1743286035489" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
+    <SUITE FILE_PATH="coverage/PythonProjectCinemaBot$tmp.coverage" NAME="tmp Coverage Results" MODIFIED="1743004212603" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
+    <SUITE FILE_PATH="coverage/PythonProjectCinemaBot$test_search.coverage" NAME="test_search Coverage Results" MODIFIED="1742602910544" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
+  </component>
+</project>
