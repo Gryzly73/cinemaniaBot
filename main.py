@@ -106,23 +106,6 @@ def parse_cron(cron_str: str) -> dict:
         "day_of_week": parts[4]
     }
 
-# --- Универсальные обработчики ---
-@dp.message(F.text.in_(["🔙 В меню", "/admin"]))
-async def return_to_admin_menu(message: types.Message, state: FSMContext):
-    """Обработчик возврата в админ-панель из любого места"""
-    await state.clear()
-    await admin_panel(message)
-
-def admin_menu_keyboard() -> ReplyKeyboardMarkup: #
-    builder = ReplyKeyboardBuilder()
-    # Основные кнопки
-    builder.row(KeyboardButton(text="🎭 Сменить жанр"))
-    builder.row(KeyboardButton(text="🖋 Сменить стиль"))
-    builder.row(KeyboardButton(text="⏰ Изменить время"))
-    # Кнопка возврата внизу
-    builder.row(KeyboardButton(text="🔙 В меню"))
-    return builder.as_markup(resize_keyboard=True)
-
 # Работа с историей фильмов
 def save_to_history(movie: dict):
     try:
@@ -397,8 +380,86 @@ async def publish_scheduled_post():
         logger.error(f"Ошибка публикации: {str(e)}")
         await notify_admin(f"🔥 Ошибка публикации: {str(e)}")
 
-# ОБРАБОТЧИКИ СООБЩЕНИЙ
+# Уведомления админа
+async def notify_admin(message: str):
+    for admin in ADMINS:
+        await bot.send_message(admin, message)
 
+async def verify_imdb_id(imdb_id: str) -> bool:
+    omdb_api_key = os.getenv("OMDB_API_KEY")
+    url = f"http://www.omdbapi.com/?i={imdb_id}&apikey={omdb_api_key}"
+
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url) as response:
+                data = await response.json()
+                return data.get('Response') == 'True'
+    except Exception as e:
+        logger.error(f"Ошибка верификации IMDB ID: {str(e)}")
+        return False
+
+# --- Универсальные обработчики ---
+def admin_menu_keyboard() -> ReplyKeyboardMarkup: #
+    builder = ReplyKeyboardBuilder()
+    # Основные кнопки
+    builder.row(KeyboardButton(text="🎭 Сменить жанр"))
+    builder.row(KeyboardButton(text="🖋 Сменить стиль"))
+    builder.row(KeyboardButton(text="⏰ Изменить время"))
+    # Кнопка возврата внизу
+    builder.row(KeyboardButton(text="🔙 В меню"))
+    return builder.as_markup(resize_keyboard=True)
+
+@dp.message(F.text.in_(["🔙 В меню", "/admin"]))
+async def return_to_admin_menu(message: types.Message, state: FSMContext):
+    """Обработчик возврата в админ-панель из любого места"""
+    await state.clear()
+    await admin_panel(message)
+
+async def admin_panel(message: types.Message):
+    if message.from_user.id not in ADMINS:
+        print("Id admin:")
+        print(message.from_user.id)
+        print(ADMINS)
+        await message.answer("⛔ Доступ запрещен\!")
+        return
+
+    try:
+        cron_parts = DB["schedule"].split()
+        current_time = f"{cron_parts[1]}:{cron_parts[0]}"
+    except:
+        current_time = "⏰ Не установлено"
+
+    status_text = (
+        f"⚙️ *{escape_md('Админ-панель')}*\n\n"  # Экранируем статический текст
+        f"▫️ Жанр: {escape_md(DB['current_genre'])}\n"
+        f"▫️ Стиль: {escape_md(DB['current_style'])}\n"
+        f"▫️ Время: {escape_md(current_time)}\n\n"
+        f"Опубликовано фильмов: {escape_md(str(len(DB['posted_imdb_ids'])))}"  # Число тоже экранируем
+    )
+    logger.debug(f"Raw text before sending: {status_text}")
+    builder = ReplyKeyboardBuilder()
+    builder.row(
+        KeyboardButton(text="🎭 Сменить жанр"),
+        KeyboardButton(text="🖋 Сменить стиль")
+    )
+    builder.row(
+        KeyboardButton(text="⏰ Изменить время"),
+        KeyboardButton(text="🚀 Опубликовать сейчас")
+    )
+    builder.row(
+        KeyboardButton(text="📝 Создать рецензию"),
+        KeyboardButton(text="🔙 В меню")
+    )
+
+    await message.answer(
+        status_text,
+        reply_markup=builder.as_markup(
+            resize_keyboard=True,
+            input_field_placeholder="Выберите действие\.\.\."
+        )
+    )
+
+# ОБРАБОТЧИКИ СООБЩЕНИЙ
 @dp.message(F.text == "/start")
 async def cmd_start(message: types.Message):
     if message.from_user.id in ADMINS:
@@ -446,6 +507,7 @@ async def cmd_start(message: types.Message):
                 parse_mode=ParseMode.MARKDOWN_V2,
                 reply_markup=ReplyKeyboardRemove()
             )
+
 # Модифицированный обработчик публикации
 @dp.message(F.text == "🚀 Опубликовать сейчас")
 async def publish_now_handler(message: types.Message, state: FSMContext):
@@ -519,6 +581,7 @@ async def publish_now_handler(message: types.Message, state: FSMContext):
     else:
         await message.answer("⚠️ Нет рецензии для публикации\!")
 
+# Остальные обработчики
 # Обработчик кнопки "🎭 Сменить жанр"
 @dp.message(F.text == "🎭 Сменить жанр")
 async def set_genre_handler(message: types.Message, state: FSMContext):
@@ -569,7 +632,6 @@ async def set_schedule_handler(message: types.Message, state: FSMContext):
         reply_markup=builder.as_markup(resize_keyboard=True)
     )
     await state.set_state(AdminStates.setting_schedule)
-
 
 # Добавляем новый обработчик для состояния установки времени
 @dp.message(AdminStates.setting_schedule)
@@ -624,25 +686,6 @@ async def cancel_button_handler(message: types.Message, state: FSMContext):
 @dp.message(F.text == "📝 Еще рецензия")
 async def another_review_handler(message: types.Message, state: FSMContext):
     await custom_review_start(message, state)
-
-# ... другие обработчики ...
-# Уведомления админа
-async def notify_admin(message: str):
-    for admin in ADMINS:
-        await bot.send_message(admin, message)
-
-async def verify_imdb_id(imdb_id: str) -> bool:
-    omdb_api_key = os.getenv("OMDB_API_KEY")
-    url = f"http://www.omdbapi.com/?i={imdb_id}&apikey={omdb_api_key}"
-
-    try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(url) as response:
-                data = await response.json()
-                return data.get('Response') == 'True'
-    except Exception as e:
-        logger.error(f"Ошибка верификации IMDB ID: {str(e)}")
-        return False
 
 # Изменения в функции generate_custom_review и добавление parse_custom_review
 def parse_custom_review(text: str) -> Optional[dict]:
@@ -839,50 +882,6 @@ async def style_selected(callback: types.CallbackQuery, state: FSMContext):
     await callback.message.edit_text(f"✅ Стиль установлен: {style}")
     await state.clear()
     await admin_panel(callback.message)  # Возврат в админ-панель
-
-async def admin_panel(message: types.Message):
-    if message.from_user.id not in ADMINS:
-        print("Id admin:")
-        print(message.from_user.id)
-        print(ADMINS)
-        await message.answer("⛔ Доступ запрещен\!")
-        return
-
-    try:
-        cron_parts = DB["schedule"].split()
-        current_time = f"{cron_parts[1]}:{cron_parts[0]}"
-    except:
-        current_time = "⏰ Не установлено"
-
-    status_text = (
-        f"⚙️ *{escape_md('Админ-панель')}*\n\n"  # Экранируем статический текст
-        f"▫️ Жанр: {escape_md(DB['current_genre'])}\n"
-        f"▫️ Стиль: {escape_md(DB['current_style'])}\n"
-        f"▫️ Время: {escape_md(current_time)}\n\n"
-        f"Опубликовано фильмов: {escape_md(str(len(DB['posted_imdb_ids'])))}"  # Число тоже экранируем
-    )
-    logger.debug(f"Raw text before sending: {status_text}")
-    builder = ReplyKeyboardBuilder()
-    builder.row(
-        KeyboardButton(text="🎭 Сменить жанр"),
-        KeyboardButton(text="🖋 Сменить стиль")
-    )
-    builder.row(
-        KeyboardButton(text="⏰ Изменить время"),
-        KeyboardButton(text="🚀 Опубликовать сейчас")
-    )
-    builder.row(
-        KeyboardButton(text="📝 Создать рецензию"),
-        KeyboardButton(text="🔙 В меню")
-    )
-
-    await message.answer(
-        status_text,
-        reply_markup=builder.as_markup(
-            resize_keyboard=True,
-            input_field_placeholder="Выберите действие\.\.\."
-        )
-    )
 
 # Обработчик кнопки "📝 Создать рецензию"
 @dp.message(F.text == "📝 Создать рецензию")
