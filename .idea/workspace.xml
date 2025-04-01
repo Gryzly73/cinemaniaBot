@@ -4,8 +4,8 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="6bd0ef88-5848-431e-80fc-55e7ab11b401" name="Changes" comment="free .env readme">
-      <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
+    <list default="true" id="6bd0ef88-5848-431e-80fc-55e7ab11b401" name="Changes" comment="movies_history.json">
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -442,7 +442,23 @@
       <option name="project" value="LOCAL" />
       <updated>1743426557724</updated>
     </task>
-    <option name="localTasksCounter" value="42" />
+    <task id="LOCAL-00042" summary=".env readme">
+      <option name="closed" value="true" />
+      <created>1743467222905</created>
+      <option name="number" value="00042" />
+      <option name="presentableId" value="LOCAL-00042" />
+      <option name="project" value="LOCAL" />
+      <updated>1743467222905</updated>
+    </task>
+    <task id="LOCAL-00043" summary="movies_history.json">
+      <option name="closed" value="true" />
+      <created>1743467759438</created>
+      <option name="number" value="00043" />
+      <option name="presentableId" value="LOCAL-00043" />
+      <option name="project" value="LOCAL" />
+      <updated>1743467759438</updated>
+    </task>
+    <option name="localTasksCounter" value="44" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -477,8 +493,6 @@
     </option>
   </component>
   <component name="VcsManagerConfiguration">
-    <MESSAGE value="ответ с рецензией кидает не в бот, промт надо дорабатывать" />
-    <MESSAGE value="почищенный проект немного исправленный промт" />
     <MESSAGE value="Заработал с меню, работа меню не вполне устраивает, выбирает стили, генерит фильм по названию или описанию" />
     <MESSAGE value="Что то запускается ничего пока в меню бота не видно как не видно и самого меню в боте" />
     <MESSAGE value="Опубликовала со 2й попытки, слишком длинная рецензия, по факту только текст" />
@@ -502,7 +516,9 @@
     <MESSAGE value="передал содержание в группу, надо заполнить hepl, убрать style пока не исправилось" />
     <MESSAGE value="free .env" />
     <MESSAGE value="free .env readme" />
-    <option name="LAST_COMMIT_MESSAGE" value="free .env readme" />
+    <MESSAGE value=".env readme" />
+    <MESSAGE value="movies_history.json" />
+    <option name="LAST_COMMIT_MESSAGE" value="movies_history.json" />
   </component>
   <component name="com.intellij.coverage.CoverageDataManagerImpl">
     <SUITE FILE_PATH="coverage/PythonProjectCinemaBot$test_searchGpt.coverage" NAME="test_searchGpt Coverage Results" MODIFIED="1742601881861" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
